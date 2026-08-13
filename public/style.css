@@ -1,0 +1,210 @@
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0a1b12;color:#fff}body{min-height:100dvh}.hidden{display:none!important}button,input,select{font:inherit}.screen{min-height:100dvh}#home{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 18px;background:radial-gradient(circle at 50% 20%,#245d3b 0,#123723 38%,#07150e 100%)}.hero{text-align:center}.logoMark{width:72px;height:72px;margin:auto;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#f7cf6d,#a87517);color:#173a27;font-size:40px;box-shadow:0 12px 30px #0007}h1{font-family:Georgia,serif;font-size:48px;margin:12px 0 3px}.tag{opacity:.75;margin:0 0 20px}.panel{width:min(460px,100%);background:#fff;color:#172018;border-radius:22px;padding:20px;box-shadow:0 24px 70px #0008}.panel label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 5px}.panel input,.panel select{width:100%;border:1px solid #d9ded9;border-radius:12px;padding:13px;background:#f7faf7}.profileRow{display:grid;grid-template-columns:80px 1fr;gap:8px}.profileRow select{font-size:24px}.primary,.joinrow button{border:0;border-radius:13px;background:#1f6b42;color:#fff;font-weight:800;padding:14px 16px;cursor:pointer}.primary{width:100%;margin-top:16px}.or{display:flex;gap:10px;align-items:center;opacity:.55;margin:15px 0;font-size:12px}.or span{height:1px;background:#999;flex:1}.joinrow{display:grid;grid-template-columns:1fr 1fr auto;gap:7px}.fine{max-width:540px;text-align:center;font-size:12px;opacity:.62;line-height:1.5}details{margin-top:12px;border-top:1px solid #e8ece8;padding-top:10px}summary{cursor:pointer;font-weight:800}.check{display:flex!important;align-items:center;gap:8px;text-transform:none!important;letter-spacing:0!important;font-size:14px!important}.check input{width:auto}
+#game{background:#143b27}header{height:68px;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0d261a;border-bottom:1px solid #ffffff18;position:relative;z-index:5}.tiny{font-size:9px;opacity:.55;letter-spacing:.15em}.brand{font-family:Georgia,serif;font-weight:800;letter-spacing:.08em}.ghost{border:1px solid #ffffff30;background:#ffffff0d;color:#fff;padding:8px 12px;border-radius:10px}#table{height:calc(100dvh - 68px);position:relative;overflow:hidden;background:radial-gradient(ellipse at center,#2e7047 0,#1f5637 42%,#123b26 100%)}#table:after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.17;background-image:repeating-linear-gradient(15deg,#fff 0 1px,transparent 1px 7px)}#players{position:absolute;inset:0;z-index:2}.seat{position:absolute;text-align:center;min-width:94px;transition:.25s transform,.25s filter}.seat0{left:4%;top:34%}.seat1{left:17%;top:5%}.seat2{right:17%;top:5%}.seat3{right:4%;top:34%}.seat4{right:7%;bottom:25%}.seat.active .avatar{box-shadow:0 0 0 4px #f5c451,0 0 28px #f5c45199;transform:scale(1.08)}.seat.you .name{color:#ffd76d}.avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;margin:auto;background:linear-gradient(145deg,#f2d7a3,#b98542);font-size:32px;border:2px solid #fff4;transition:.2s}.name{font-family:Georgia,serif;font-size:15px;text-shadow:0 2px 5px #000}.meta{font-size:9px;opacity:.68}.scorepill{display:inline-block;margin-top:3px;background:#0005;border-radius:20px;padding:3px 7px;font-size:10px}#center{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:min(480px,58vw);z-index:3;text-align:center}#status{font-family:Georgia,serif;font-size:18px;text-shadow:0 2px 8px #0008;min-height:42px}.lobbyPanel{background:#0b2118dd;border:1px solid #ffffff20;border-radius:18px;padding:18px;backdrop-filter:blur(10px)}.lobbyPanel h2{margin:0 0 8px}.rules{font-family:Inter,sans-serif;font-size:12px;opacity:.72}#multiplier{position:absolute;right:-10px;top:35px;font-size:28px;font-weight:900;color:#ffd15a;text-shadow:0 3px 10px #000}#trick{height:150px;position:relative;display:flex;align-items:center;justify-content:center;gap:7px}.played{animation:deal .28s ease-out}.played:nth-child(2){transform:rotate(3deg)}.played:nth-child(3){transform:rotate(-3deg)}.played:nth-child(4){transform:rotate(5deg)}.played:nth-child(5){transform:rotate(-5deg)}@keyframes deal{from{opacity:0;transform:translateY(40px) scale(.8)}to{opacity:1}}#actions{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}.action{border:1px solid #ffffff30;background:#13291fdd;color:#fff;border-radius:12px;padding:10px 14px;font-weight:800;box-shadow:0 5px 14px #0003}.action.gold{background:#e0ad3b;color:#1b2119;border:0}.action.danger{background:#a93a38}.action.purple{background:#664090}.card{width:76px;height:110px;border-radius:8px;background:#fff;color:#111;box-shadow:0 7px 18px #0007;position:relative;padding:6px;font-family:Georgia,serif;user-select:none}.card.red{color:#c52222}.corner{font-weight:800;font-size:15px;line-height:.9;text-align:left}.corner.bottom{position:absolute;right:6px;bottom:6px;transform:rotate(180deg)}.pip{position:absolute;inset:0;display:grid;place-items:center;font-size:46px}.card.small{width:60px;height:86px}.card.small .pip{font-size:34px}.card.small .corner{font-size:12px}#hand{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;justify-content:center;z-index:4;width:95%;height:120px;align-items:end}.handcard{margin-left:-14px;transition:.15s transform,.15s opacity;cursor:pointer}.handcard:first-child{margin-left:0}.handcard:hover,.handcard.selected{transform:translateY(-18px)}.handcard.selected .card{box-shadow:0 0 0 4px #ffd15a,0 8px 24px #0008}.handcard.illegal{opacity:.34;cursor:not-allowed}.handcard.disabled{cursor:default}.historyBtn{position:fixed;left:10px;bottom:10px;z-index:8;border:1px solid #ffffff2b;border-radius:999px;background:#0b2118cc;color:#fff;padding:8px 12px}.history{position:fixed;right:0;top:68px;bottom:0;width:min(390px,90vw);z-index:20;background:#101812f5;box-shadow:-15px 0 50px #0008;padding:16px;overflow:auto;backdrop-filter:blur(12px)}.historyHead{display:flex;justify-content:space-between;align-items:center;font-size:19px}.historyHead button{background:none;border:0;color:#fff;font-size:28px}.historyItem{border-bottom:1px solid #ffffff18;padding:12px 0;font-size:13px;line-height:1.45}.delta{font-size:11px;opacity:.65;margin-top:4px}.empty{opacity:.6}#toast{position:fixed;top:84px;left:50%;transform:translate(-50%,-10px);background:#111e;color:#fff;border-radius:12px;padding:10px 15px;opacity:0;pointer-events:none;transition:.2s;z-index:99}#toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:650px){h1{font-size:42px}.joinrow{grid-template-columns:1fr auto}.joinrow #joinPassword{grid-column:1/3}.seat0{left:1%;top:36%}.seat1{left:7%;top:8%}.seat2{right:7%;top:8%}.seat3{right:1%;top:36%}.seat4{right:2%;bottom:24%}.avatar{width:48px;height:48px;font-size:28px}.seat{min-width:78px}.name{font-size:13px}.meta{display:none}#center{width:68vw;top:45%}#status{font-size:15px}.card{width:62px;height:92px}.pip{font-size:38px}.handcard{margin-left:-16px}#hand{height:104px;bottom:4px}.card.small{width:49px;height:72px}#trick{height:112px}.action{padding:8px 10px;font-size:12px}}
+/* v3: persistent picker/partner markers, seat-side played cards, called suit, illustrated courts */
+.roleMarks{position:absolute;right:-7px;top:-5px;display:flex;gap:4px;z-index:8}.roleMark{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font:900 14px/1 Inter,sans-serif;border:2px solid #fff;box-shadow:0 2px 8px #0008}.pickerMark{background:#d62828}.partnerMark{background:#1769d2}.seatPlayed{position:absolute;z-index:7;filter:drop-shadow(0 7px 8px #0007)}.seat0 .seatPlayed{left:102%;top:-4px}.seat1 .seatPlayed{left:74%;top:73%}.seat2 .seatPlayed{right:74%;top:73%}.seat3 .seatPlayed{right:102%;top:-4px}.seat4 .seatPlayed{right:72%;bottom:70%}.playOrder{position:absolute;right:-7px;top:-8px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#0b2118;color:#fff;border:2px solid #f5c451;font:800 11px Inter,sans-serif}.calledBadge{display:inline-flex;align-items:center;gap:9px;background:#081d13dd;border:1px solid #ffffff31;border-radius:999px;padding:7px 13px;box-shadow:0 5px 16px #0005}.calledBadge span{font:800 9px Inter,sans-serif;letter-spacing:.14em;opacity:.65}.calledBadge strong{font:800 15px Georgia,serif}.card.face{overflow:hidden}.court{position:absolute;inset:17% 13%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid currentColor;background:linear-gradient(135deg,#f7efce 0 48%,#e5d79d 49% 52%,#f7efce 53%);overflow:hidden}.courtCrown{font-size:15px;line-height:1;margin-bottom:-1px}.courtHead{position:relative;width:24px;height:25px}.courtFace{position:absolute;left:5px;top:4px;width:14px;height:16px;background:#e9b77f;border:1px solid #633;border-radius:48% 48% 45% 45%}.courtHair{position:absolute;left:3px;top:1px;width:18px;height:11px;background:currentColor;border-radius:60% 60% 30% 30%;z-index:2}.courtBody{width:31px;height:25px;margin-top:-1px;background:currentColor;clip-path:polygon(50% 0,100% 100%,0 100%);display:grid;place-items:center;color:#f7efce;font-size:14px}.courtLabel{font:700 6px/1 Inter,sans-serif;letter-spacing:.08em;margin-top:2px}.card.small .court{inset:15% 11%}.card.small .courtCrown{font-size:10px}.card.small .courtHead{width:17px;height:17px}.card.small .courtFace{left:4px;top:3px;width:10px;height:11px}.card.small .courtHair{left:2px;width:14px;height:8px}.card.small .courtBody{width:21px;height:17px;font-size:9px}.card.small .courtLabel{font-size:4px}
+@media(max-width:620px){.roleMark{width:22px;height:22px;font-size:12px}.seatPlayed .card.small{transform:scale(.82);transform-origin:center}.seat0 .seatPlayed{left:88%;top:12px}.seat3 .seatPlayed{right:88%;top:12px}.seat1 .seatPlayed{left:60%;top:67%}.seat2 .seatPlayed{right:60%;top:67%}.seat4 .seatPlayed{right:54%;bottom:62%}.calledBadge{padding:6px 10px}.calledBadge strong{font-size:13px}}
+
+/* v4: local hand identity, original traditional court cards, staged hand intro */
+#announcements{min-height:0;margin:4px auto 2px;display:none;max-width:360px;pointer-events:none}
+#announcements.visible{display:flex;flex-direction:column;align-items:center;gap:4px}
+.announceLine{opacity:0;transform:translateY(-8px) scale(.98);padding:4px 12px;border-radius:999px;background:#071a12d9;border:1px solid #ffffff26;font:800 12px/1.2 Inter,sans-serif;letter-spacing:.08em;text-shadow:0 2px 4px #000;animation:announceIn .55s ease forwards}
+.announceLine:first-child{font-family:Georgia,serif;font-size:16px;letter-spacing:.03em}
+@keyframes announceIn{to{opacity:1;transform:translateY(0) scale(1)}}
+
+#hand{gap:10px;align-items:end}
+.handIdentity{position:relative;display:flex;align-items:center;gap:8px;flex:0 0 auto;margin:0 4px 6px 0;padding:7px 9px 7px 7px;border-radius:18px;background:#081f16dc;border:1px solid #ffffff2b;box-shadow:0 7px 18px #0005;backdrop-filter:blur(7px)}
+.handAvatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#f2d7a3,#b98542);border:2px solid #fff4;font-size:25px}
+.handWho{display:flex;flex-direction:column;align-items:flex-start;white-space:nowrap}.handWho strong{font:700 13px Georgia,serif}.handWho span{font-size:9px;opacity:.65;text-transform:uppercase;letter-spacing:.08em}.handRoleMarks{position:absolute;right:-8px;top:-10px;display:flex;gap:3px}
+.handCards{display:flex;justify-content:center;align-items:end;min-width:0}
+
+.card.face{background:#fffdf7}.courtSvg{position:absolute;left:14%;top:13%;width:72%;height:74%;display:block}.card.small .courtSvg{left:13%;top:12%;width:74%;height:76%}
+.card.face .corner{z-index:3;position:relative}.card.face .corner.bottom{position:absolute}
+
+.seatPlayed{transition:opacity .45s ease,transform .45s ease}.seatPlayed .card{animation:playedArrive .55s cubic-bezier(.2,.8,.2,1)}
+@keyframes playedArrive{from{opacity:0;transform:translateY(20px) scale(.8) rotate(-4deg)}to{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
+
+@media(max-width:650px){
+  #hand{gap:3px;width:98%}.handIdentity{padding:5px 6px;margin-right:1px;border-radius:15px}.handAvatar{width:34px;height:34px;font-size:21px}.handWho{display:none}.handCards{flex:1;justify-content:center}.announceLine{font-size:10px;padding:3px 8px}.announceLine:first-child{font-size:13px}.courtSvg{left:12%;top:11%;width:76%;height:78%}
+}
+@media(max-width:430px){.handIdentity{position:absolute;left:3px;bottom:0;z-index:8}.handCards{width:100%}.handAvatar{width:32px;height:32px}.handcard{margin-left:-18px}}
+
+/* v5: human-ready gates, trick pauses, larger inward played cards, dealer shuffle */
+.selfSeat .name{margin-top:5px}.selfSeat .roleMarks{top:-10px}.selfSeat .dealerBadge{top:-10px}
+.dealerBadge{position:absolute;left:-7px;top:-5px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#d6a938;color:#172016;border:2px solid #fff;font:900 12px Inter,sans-serif;box-shadow:0 2px 8px #0008;z-index:9}
+.dealerShuffling .name{color:#ffe28c}.dealerShuffling{animation:dealerPulse 1.1s ease-in-out infinite alternate}
+@keyframes dealerPulse{to{filter:drop-shadow(0 0 10px #f4cb6a)}}
+.dealerShuffleMini{position:absolute;left:50%;top:42px;width:62px;height:44px;transform:translateX(-50%);z-index:10;pointer-events:none}.dealerShuffleMini i{position:absolute;left:20px;top:9px;width:25px;height:34px;border-radius:4px;background:repeating-linear-gradient(45deg,#892c32 0 3px,#f2e7cf 3px 5px);border:2px solid #fff;box-shadow:0 2px 5px #0007}.dealerShuffleMini i:nth-child(1){animation:miniShuffleA 1s ease-in-out infinite}.dealerShuffleMini i:nth-child(2){animation:miniShuffleB 1s ease-in-out infinite .08s}.dealerShuffleMini i:nth-child(3){animation:miniShuffleC 1s ease-in-out infinite .16s}@keyframes miniShuffleA{50%{transform:translateX(-16px) rotate(-13deg)}}@keyframes miniShuffleB{50%{transform:translateX(16px) rotate(13deg)}}@keyframes miniShuffleC{50%{transform:translateY(-8px)}}
+
+/* Played cards stay associated with each seat, but sit farther inward toward the table center. */
+.seatPlayed .card.small{width:72px;height:104px;border-radius:8px}.seatPlayed .card.small .pip{font-size:42px}.seatPlayed .card.small .corner{font-size:13px}.seatPlayed .card.small .courtSvg{left:12%;top:10%;width:76%;height:80%}
+.seat0 .seatPlayed{left:132%;top:-2px}.seat1 .seatPlayed{left:88%;top:93%}.seat2 .seatPlayed{right:88%;top:93%}.seat3 .seatPlayed{right:132%;top:-2px}.seat4 .seatPlayed{right:92%;bottom:85%}
+.seatPlayed.trickWinner .card{box-shadow:0 0 0 4px #f5c451,0 10px 25px #0009;animation:winnerPop .8s ease-in-out infinite alternate}@keyframes winnerPop{to{transform:translateY(-5px) scale(1.04)}}
+.playOrder{width:24px;height:24px;font-size:12px}
+
+.readyGate{display:flex;flex-direction:column;align-items:center;gap:7px;margin-top:10px;min-width:150px}.readyCount{font:700 11px Inter,sans-serif;opacity:.72;letter-spacing:.02em}.readyGate .action{min-width:140px}.action.readyDone,.action.disabledAction{background:#284337;color:#bcd0c4;opacity:.82;cursor:default}.action:disabled{pointer-events:none}
+#actions>.readyGate{width:100%}
+
+.shuffleStage{width:100%;height:152px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}.shuffleLabel{display:flex;flex-direction:column;gap:1px}.shuffleLabel span{font:800 9px Inter,sans-serif;letter-spacing:.16em;opacity:.62}.shuffleLabel strong{font:700 16px Georgia,serif}.shuffleHint{font-size:10px;opacity:.58}.riffle{position:relative;width:150px;height:78px}.half,.deckStack{position:absolute;left:50%;top:14px;width:52px;height:66px}.half i,.deckStack i{position:absolute;inset:0;border-radius:7px;background:repeating-linear-gradient(45deg,#8b2f38 0 4px,#f5ead4 4px 6px);border:2px solid #fff;box-shadow:0 5px 12px #0007}.half i:nth-child(2),.deckStack i:nth-child(2){transform:translate(2px,-2px)}.half i:nth-child(3),.deckStack i:nth-child(3){transform:translate(4px,-4px)}.half i:nth-child(4){transform:translate(6px,-6px)}.leftHalf{margin-left:-57px;animation:riffleLeft 1.35s cubic-bezier(.4,0,.2,1) infinite}.rightHalf{margin-left:7px;animation:riffleRight 1.35s cubic-bezier(.4,0,.2,1) infinite}.deckStack{margin-left:-24px;opacity:0;animation:stackAppear 1.35s ease-in-out infinite}.deckStack i:nth-child(1){transform:rotate(-1deg)}.deckStack i:nth-child(2){transform:translate(2px,-2px) rotate(1deg)}.deckStack i:nth-child(3){transform:translate(4px,-4px) rotate(-1deg)}@keyframes riffleLeft{0%,15%{transform:translateX(-22px) rotate(-10deg)}55%,82%{transform:translateX(27px) rotate(2deg)}100%{transform:translateX(-22px) rotate(-10deg)}}@keyframes riffleRight{0%,15%{transform:translateX(22px) rotate(10deg)}55%,82%{transform:translateX(-27px) rotate(-2deg)}100%{transform:translateX(22px) rotate(10deg)}}@keyframes stackAppear{0%,38%,100%{opacity:0;transform:translateY(7px) scale(.92)}58%,82%{opacity:1;transform:translateY(0) scale(1)}}
+
+@media(max-width:650px){
+  .seatPlayed .card.small{width:61px;height:89px;transform:none}.seatPlayed .card.small .pip{font-size:36px}.seatPlayed .card.small .corner{font-size:11px}
+  .seat0 .seatPlayed{left:106%;top:10px}.seat3 .seatPlayed{right:106%;top:10px}.seat1 .seatPlayed{left:72%;top:82%}.seat2 .seatPlayed{right:72%;top:82%}.seat4 .seatPlayed{right:70%;bottom:75%}
+  .dealerShuffleMini{top:34px;transform:translateX(-50%) scale(.78)}.shuffleStage{height:118px}.riffle{transform:scale(.82);height:60px}.shuffleLabel strong{font-size:14px}
+}
+@media(max-width:430px){
+  .seatPlayed .card.small{width:55px;height:81px}.seat0 .seatPlayed{left:92%;top:15px}.seat3 .seatPlayed{right:92%;top:15px}.seat1 .seatPlayed{left:58%;top:78%}.seat2 .seatPlayed{right:58%;top:78%}.seat4 .seatPlayed{right:58%;bottom:68%}
+}
+
+/* v6: five-avatar layout, tighter center trick ring, trick collection, bolder card indices */
+/* Keep the local player's only avatar beside the hand. Never duplicate it at the table seat. */
+.selfSeat .avatar{display:none!important}
+
+/* Bring all five played cards deeper toward the middle while preserving their circular seat relationship. */
+.seat0 .seatPlayed{left:176%;top:-6px}
+.seat1 .seatPlayed{left:110%;top:123%}
+.seat2 .seatPlayed{right:110%;top:123%}
+.seat3 .seatPlayed{right:176%;top:-6px}
+.seat4 .seatPlayed{right:128%;bottom:114%}
+.seatPlayed .card.small{width:78px;height:114px;border-radius:9px}
+.seatPlayed .card.small .pip{font-size:48px}
+
+/* Larger, more polished card rank/suit indices. */
+.card{padding:5px}
+.corner{display:flex;flex-direction:column;align-items:center;width:24px;font-family:Georgia,'Times New Roman',serif;font-weight:900;line-height:.76;text-align:center;letter-spacing:-.04em;text-shadow:0 .5px 0 #fff}
+.corner .rank{font-size:21px;line-height:.78}
+.corner .cornerSuit{font-size:18px;line-height:.85;margin-top:2px}
+.corner.bottom{right:5px;bottom:5px;align-items:center}
+.card.small .corner{width:21px}
+.card.small .corner .rank{font-size:18px}
+.card.small .corner .cornerSuit{font-size:15px}
+.seatPlayed .card.small .corner .rank{font-size:20px}
+.seatPlayed .card.small .corner .cornerSuit{font-size:17px}
+.card.face .corner{z-index:4}
+
+/* When all humans advance, every card visibly flies into the trick winner before the next trick starts. */
+.seatPlayed.collectingCard{z-index:30;pointer-events:none;animation:collectTrick 1.02s cubic-bezier(.22,.72,.18,1) var(--collect-delay,0ms) both!important}
+.seatPlayed.collectingCard .card{animation:none!important;box-shadow:0 10px 28px #000b}
+.seatPlayed.collectingCard .playOrder{animation:fadeOrder .28s ease forwards}
+@keyframes collectTrick{
+  0%{transform:translate(0,0) scale(1) rotate(0deg);opacity:1}
+  22%{transform:translate(calc(var(--collect-x)*.18),calc(var(--collect-y)*.18 - 14px)) scale(1.05) rotate(-2deg);opacity:1}
+  78%{transform:translate(calc(var(--collect-x)*.9),calc(var(--collect-y)*.9)) scale(.78) rotate(5deg);opacity:1}
+  100%{transform:translate(var(--collect-x),var(--collect-y)) scale(.38) rotate(8deg);opacity:0}
+}
+@keyframes fadeOrder{to{opacity:0;transform:scale(.7)}}
+
+@media(max-width:650px){
+  .seatPlayed .card.small{width:66px;height:97px}
+  .seat0 .seatPlayed{left:132%;top:8px}.seat3 .seatPlayed{right:132%;top:8px}
+  .seat1 .seatPlayed{left:88%;top:104%}.seat2 .seatPlayed{right:88%;top:104%}.seat4 .seatPlayed{right:91%;bottom:94%}
+  .corner .rank{font-size:19px}.corner .cornerSuit{font-size:16px}
+  .seatPlayed .card.small .corner .rank{font-size:18px}.seatPlayed .card.small .corner .cornerSuit{font-size:15px}
+}
+@media(max-width:430px){
+  .seatPlayed .card.small{width:60px;height:88px}
+  .seat0 .seatPlayed{left:112%;top:12px}.seat3 .seatPlayed{right:112%;top:12px}
+  .seat1 .seatPlayed{left:71%;top:95%}.seat2 .seatPlayed{right:71%;top:95%}.seat4 .seatPlayed{right:72%;bottom:86%}
+  .handIdentity{left:auto;right:calc(50% + 108px);bottom:0}
+}
+
+/* v7: mobile-ready start gate + absolutely no duplicate local table identity */
+.localSeatAnchor > .avatar,
+.localSeatAnchor > .name,
+.localSeatAnchor > .meta,
+.localSeatAnchor > .scorepill,
+.localSeatAnchor > .roleMarks,
+.localSeatAnchor > .dealerBadge,
+.localSeatAnchor > .dealerShuffleMini{display:none!important}
+
+/* Keep the invisible local seat anchor available only for its played card. */
+.localSeatAnchor{min-width:1px!important;width:1px!important;height:1px!important;pointer-events:none}
+.localSeatAnchor .seatPlayed{pointer-events:none}
+
+/* Start/Next barriers need to remain obvious and tappable on phones. */
+#actions .readyGate{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:8px;position:relative;z-index:20}
+#actions .readyGate .action{min-width:170px;min-height:48px;font-size:16px;border-radius:14px;box-shadow:0 8px 22px #0007}
+#actions .readyCount{font-size:12px;background:#081b12dc;border:1px solid #ffffff25;padding:5px 10px;border-radius:999px;white-space:nowrap}
+#actions .readyDone{background:#234c35;color:#dce9df;border-color:#ffffff22}
+
+@media(max-width:650px){
+  #center{width:72vw;top:43%}
+  #actions{position:relative;z-index:25}
+  #actions .readyGate{margin-top:4px}
+  #actions .readyGate .action{min-width:190px;min-height:52px;font-size:17px}
+  .lobbyPanel{padding:13px 12px}
+  .lobbyPanel p{margin:6px 0}
+}
+
+/* v8: viewer-relative five-player table — two opponents on each side */
+/* The local player exists only beside the hand. The four other seats are balanced 2-left / 2-right. */
+.seat.visual-left-top{left:7%;right:auto;top:10%;bottom:auto}
+.seat.visual-left-bottom{left:3%;right:auto;top:48%;bottom:auto}
+.seat.visual-right-top{right:7%;left:auto;top:10%;bottom:auto}
+.seat.visual-right-bottom{right:3%;left:auto;top:48%;bottom:auto}
+.seat.visual-self{left:50%;right:auto;top:auto;bottom:16%;transform:translateX(-50%)}
+
+/* Played cards form a compact ring closer to center, while staying visually tied to their player. */
+.seat.visual-left-top .seatPlayed{left:125%;right:auto;top:86%;bottom:auto}
+.seat.visual-left-bottom .seatPlayed{left:145%;right:auto;top:-8%;bottom:auto}
+.seat.visual-right-top .seatPlayed{right:125%;left:auto;top:86%;bottom:auto}
+.seat.visual-right-bottom .seatPlayed{right:145%;left:auto;top:-8%;bottom:auto}
+.seat.visual-self .seatPlayed{left:50%;right:auto;top:auto;bottom:118px;transform:translateX(-50%)}
+
+@media(max-width:650px){
+  .seat.visual-left-top{left:2%;top:9%}.seat.visual-left-bottom{left:1%;top:48%}
+  .seat.visual-right-top{right:2%;top:9%}.seat.visual-right-bottom{right:1%;top:48%}
+  .seat.visual-left-top .seatPlayed{left:104%;top:82%}.seat.visual-left-bottom .seatPlayed{left:118%;top:-2%}
+  .seat.visual-right-top .seatPlayed{right:104%;top:82%}.seat.visual-right-bottom .seatPlayed{right:118%;top:-2%}
+  .seat.visual-self .seatPlayed{bottom:102px}
+}
+@media(max-width:430px){
+  .seat.visual-left-top{left:0;top:10%}.seat.visual-left-bottom{left:0;top:47%}
+  .seat.visual-right-top{right:0;top:10%}.seat.visual-right-bottom{right:0;top:47%}
+  .seat.visual-left-top .seatPlayed{left:92%;top:76%}.seat.visual-left-bottom .seatPlayed{left:100%;top:0}
+  .seat.visual-right-top .seatPlayed{right:92%;top:76%}.seat.visual-right-bottom .seatPlayed{right:100%;top:0}
+}
+
+/* v12: larger, easier-to-read cards on both desktop and phones. */
+.card{width:88px;height:128px;border-radius:10px}
+.pip{font-size:54px}
+.corner{width:29px}
+.corner .rank{font-size:25px;line-height:.78}
+.corner .cornerSuit{font-size:21px;line-height:.86;margin-top:3px}
+.card.face .courtSvg{left:13%;top:12%;width:74%;height:76%}
+
+/* Played cards should be especially easy to identify from across the table. */
+.seatPlayed .card.small{width:86px;height:125px;border-radius:10px}
+.seatPlayed .card.small .pip{font-size:52px}
+.seatPlayed .card.small .corner{width:26px}
+.seatPlayed .card.small .corner .rank{font-size:23px}
+.seatPlayed .card.small .corner .cornerSuit{font-size:20px}
+
+/* Give the local hand enough room for the larger cards. */
+#hand{height:138px}
+.handcard{margin-left:-18px}
+
+@media(max-width:650px){
+  .card{width:74px;height:108px}
+  .pip{font-size:46px}
+  .corner{width:25px}
+  .corner .rank{font-size:22px}
+  .corner .cornerSuit{font-size:19px}
+  .seatPlayed .card.small{width:72px;height:105px}
+  .seatPlayed .card.small .pip{font-size:45px}
+  .seatPlayed .card.small .corner .rank{font-size:21px}
+  .seatPlayed .card.small .corner .cornerSuit{font-size:18px}
+  #hand{height:121px;bottom:3px}
+  .handcard{margin-left:-19px}
+}
+@media(max-width:430px){
+  .card{width:69px;height:101px}
+  .pip{font-size:43px}
+  .corner .rank{font-size:21px}
+  .corner .cornerSuit{font-size:18px}
+  .seatPlayed .card.small{width:68px;height:99px}
+  .seatPlayed .card.small .pip{font-size:42px}
+  .seatPlayed .card.small .corner .rank{font-size:20px}
+  .seatPlayed .card.small .corner .cornerSuit{font-size:17px}
+  .handcard{margin-left:-20px}
+}
