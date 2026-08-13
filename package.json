@@ -1,1 +1,1 @@
-{"name":"sheepshead-online","version":"2.0.1","private":true,"description":"Five-player online Sheepshead with friends and bots","scripts":{"start":"node server.js"},"dependencies":{"express":"^4.21.2","socket.io":"^4.8.1"}}
+{"name":"sheepshead-online","version":"2.0.2","private":true,"description":"Five-player online Sheepshead with friends and bots","scripts":{"start":"node server.js"},"dependencies":{"express":"^4.21.2","socket.io":"^4.8.1"}}

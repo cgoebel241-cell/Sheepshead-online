@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const { randomInt } = require('crypto');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -19,9 +20,57 @@ const isTrump=c=>c.s==='D'||c.r==='Q'||c.r==='J';
 const leadClass=c=>isTrump(c)?'T':c.s;
 const suitName=s=>({C:'Clubs',S:'Spades',H:'Hearts',D:'Diamonds'}[s]||s);
 
-function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function shuffle(a){
+  // Unbiased Fisher-Yates using Node's cryptographic RNG. This avoids the
+  // short-pattern/repeat behavior that can be noticeable with Math.random().
+  const out=[...a];
+  for(let i=out.length-1;i>0;i--){
+    const j=randomInt(i+1);
+    [out[i],out[j]]=[out[j],out[i]];
+  }
+  return out;
+}
 function cardBeats(a,b,lead){const at=isTrump(a),bt=isTrump(b);if(at&&bt)return TRUMP_ORDER.indexOf(a.id)<TRUMP_ORDER.indexOf(b.id);if(at&&!bt)return true;if(!at&&bt)return false;if(a.s!==b.s)return a.s===lead;return NONTRUMP_ORDER.indexOf(a.r)<NONTRUMP_ORDER.indexOf(b.r)}
 function legalCards(hand,trick){if(!trick.length)return hand;const lead=leadClass(trick[0].card);const follows=hand.filter(c=>lead==='T'?isTrump(c):(!isTrump(c)&&c.s===lead));return follows.length?follows:hand}
+
+// Called-ace house rule: the partner must hold the called ace until the called
+// suit is led. The partner may lead that ace only when the called suit is their
+// only fail (non-trump) suit. If the called suit is led by anyone else, the ace
+// is mandatory, even if the partner has another card of that suit.
+function legalCardsFor(room,seat){
+  const g=room.game,p=room.players[seat];
+  if(!g||!p)return[];
+  let legal=legalCards(p.hand,g.trick);
+  if(room.phase!=='playing'||g.partner==null||seat!==g.partner||g.partnerRevealed||!g.calledSuit)return legal;
+
+  const ace=p.hand.find(c=>c.r==='A'&&c.s===g.calledSuit&&!isTrump(c));
+  if(!ace)return legal;
+
+  // Partner is leading. They cannot lead the called suit while another fail
+  // suit remains. If the called suit is their only fail suit, only the ace
+  // itself (not a lower card of that suit) may be used to lead that suit.
+  if(!g.trick.length){
+    const hasOtherFail=p.hand.some(c=>!isTrump(c)&&c.s!==g.calledSuit);
+    if(hasOtherFail){
+      const filtered=legal.filter(c=>isTrump(c)||c.s!==g.calledSuit);
+      return filtered.length?filtered:legal;
+    }
+    const filtered=legal.filter(c=>isTrump(c)||c.id===ace.id);
+    return filtered.length?filtered:legal;
+  }
+
+  const lead=leadClass(g.trick[0].card);
+  if(lead===g.calledSuit)return[ace];
+
+  // The ace cannot be sloughed on another suit/trump while another legal card
+  // exists. If it is literally the final/only available card, allow it so the
+  // game can always complete.
+  if(legal.some(c=>c.id===ace.id)&&legal.length>1){
+    const filtered=legal.filter(c=>c.id!==ace.id);
+    if(filtered.length)return filtered;
+  }
+  return legal;
+}
 function strength(c){return isTrump(c)?200-TRUMP_ORDER.indexOf(c.id)*5:100-NONTRUMP_ORDER.indexOf(c.r)*5}
 function handPower(hand){const tr=hand.filter(isTrump);return tr.length*3.2+tr.reduce((n,c)=>n+(14-TRUMP_ORDER.indexOf(c.id))*.42,0)+hand.reduce((n,c)=>n+POINTS[c.r]*.13,0)}
 function createPlayer(name,socketId=null,isBot=false,avatar='🙂'){return{id:socketId||`bot-${Math.random().toString(36).slice(2,9)}`,name,isBot,avatar,hand:[],tricks:[],gameScore:0,connected:true}}
@@ -51,7 +100,7 @@ function publicState(room,viewerId){
     you:viewerId,dealer:g?.dealer??room.pendingDeal?.dealer??0,current:g?.current??null,picker:g?.picker??null,calledSuit:g?.calledSuit??null,
     partner:g?.partnerRevealed?(g?.partner??null):null,partnerRevealed:g?.partnerRevealed??false,alone:g?.alone??false,trick:g?.trick??[],trickNo:g?.trickNo??0,
     trickWinner:g?.lastTrickWinner??null,teamPoints:g?.teamPoints??null,message:room.message||'',hand:viewer?.hand||[],
-    legal:g&&['playing','leaster'].includes(room.phase)&&room.players[g.current]?.id===viewerId?legalCards(room.players[g.current].hand,g.trick).map(c=>c.id):[],
+    legal:g&&['playing','leaster'].includes(room.phase)&&room.players[g.current]?.id===viewerId?legalCardsFor(room,g.current).map(c=>c.id):[],
     canPick:g&&room.phase==='picking'&&room.players[g.current]?.id===viewerId,canDiscard:g&&room.phase==='discard'&&room.players[g.picker]?.id===viewerId,
     canCall:g&&room.phase==='call'&&room.players[g.picker]?.id===viewerId,callableSuits:callable,canCrack,canRecrack,blitzOptions,multiplier:g?.multiplier??room.pendingDeal?.multiplier??1,
     announcementLines:(g?.announcements||[]),introVisible:!!(g&&g.announcements?.length&&['discard','call','doubling','playing'].includes(room.phase)&&g.trickNo===0&&g.trick.length===0),
@@ -92,7 +141,7 @@ function applyDouble(room,seat,type){const g=room.game;if(room.phase!=='doubling
   else if((type==='BLACK'||type==='RED')&&room.settings.blitzers&&canBlitzHand(room.players[seat].hand,type)&&!g.blitzedBy.some(x=>x.seat===seat&&x.type===type)){g.blitzedBy.push({seat,type});g.multiplier=Math.min(16,g.multiplier*2);room.message=`${room.players[seat].name} called ${type==='BLACK'?'black':'red'} blitzers! x${g.multiplier}`;g.announcements.push(`${room.players[seat].name.toUpperCase()} — ${type} QUEENS BLITZ ×${g.multiplier}`)}
   else return;emit(room);scheduleBots(room)}
 function beginPlay(room){const g=room.game;if(room.phase!=='doubling')return;room.phase='playing';g.current=(g.dealer+1)%5;g.announcements.push(`PLAY BEGINS${g.multiplier>1?` — ×${g.multiplier}`:''}`,`${room.players[g.current].name.toUpperCase()} LEADS`);room.message=`Play begins${g.multiplier>1?` at x${g.multiplier}`:''}. ${room.players[g.current].name} leads.`;resetReady(room);emit(room);scheduleBots(room)}
-function playCard(room,seat,id){const g=room.game;if(!['playing','leaster'].includes(room.phase)||g.current!==seat)return;const p=room.players[seat];const card=p.hand.find(c=>c.id===id);if(!card||!legalCards(p.hand,g.trick).some(c=>c.id===id))return;p.hand=p.hand.filter(c=>c.id!==id);if(room.phase==='playing'&&g.partner!=null&&!g.partnerRevealed&&seat===g.partner&&g.calledSuit&&card.r==='A'&&card.s===g.calledSuit){g.partnerRevealed=true;room.message=`${p.name} is the partner!`}g.trick.push({seat,card});if(g.trick.length<5){g.current=(g.current+1)%5;room.message=`${room.players[g.current].name}'s turn.`;emit(room);scheduleBots(room);return}const win=trickWinner(g.trick);room.players[win.seat].tricks.push(...g.trick.map(x=>x.card));g.current=win.seat;g.lastTrickWinner=win.seat;g.trickNo++;room.phase='trickEnd';room.message=`${room.players[win.seat].name} took trick ${g.trickNo}. Everyone press Next Trick.`;resetReady(room);emit(room)}
+function playCard(room,seat,id){const g=room.game;if(!['playing','leaster'].includes(room.phase)||g.current!==seat)return;const p=room.players[seat];const card=p.hand.find(c=>c.id===id);if(!card||!legalCardsFor(room,seat).some(c=>c.id===id))return;p.hand=p.hand.filter(c=>c.id!==id);if(room.phase==='playing'&&g.partner!=null&&!g.partnerRevealed&&seat===g.partner&&g.calledSuit&&card.r==='A'&&card.s===g.calledSuit){g.partnerRevealed=true;room.message=`${p.name} is the partner!`}g.trick.push({seat,card});if(g.trick.length<5){g.current=(g.current+1)%5;room.message=`${room.players[g.current].name}'s turn.`;emit(room);scheduleBots(room);return}const win=trickWinner(g.trick);room.players[win.seat].tricks.push(...g.trick.map(x=>x.card));g.current=win.seat;g.lastTrickWinner=win.seat;g.trickNo++;room.phase='trickEnd';room.message=`${room.players[win.seat].name} took trick ${g.trickNo}. Everyone press Next Trick.`;resetReady(room);emit(room)}
 function advanceAfterTrick(room){const g=room.game;if(room.phase!=='trickEnd')return;resetReady(room);room.phase='collecting';room.message=`${room.players[g.lastTrickWinner].name} gathers the trick.`;emit(room);setTimeout(()=>{if(room.phase!=='collecting')return;if(g.trickNo===6){g.trick=[];return g.mode==='leaster'?scoreLeaster(room):scoreRound(room)}g.trick=[];g.lastTrickWinner=null;room.phase=g.mode==='leaster'?'leaster':'playing';room.message=`${room.players[g.current].name} leads trick ${g.trickNo+1}.`;emit(room);scheduleBots(room)},1150)}
 function baseScore(pp,op,pickerTricks,oppTricks){const won=pp>=61;if(won){if(oppTricks===0)return 3;if(op<=30)return 2;return 1}else{if(pickerTricks===0)return 3;if(pp<=30)return 2;return 1}}
 function scoreRound(room){const g=room.game;const pickerTeam=[g.picker,...(g.partner!=null?[g.partner]:[])];let pp=g.discard.reduce((s,c)=>s+POINTS[c.r],0),op=0,pt=0,ot=0;room.players.forEach((p,i)=>{const pts=p.tricks.reduce((s,c)=>s+POINTS[c.r],0);if(pickerTeam.includes(i)){pp+=pts;pt+=p.tricks.length/5}else{op+=pts;ot+=p.tricks.length/5}});g.teamPoints={picker:pp,opponents:op};const won=pp>=61,b=baseScore(pp,op,pt,ot)*g.multiplier;const delta=Array(5).fill(0);if(g.partner==null){delta[g.picker]=(won?4:-4)*b;room.players.forEach((p,i)=>{if(i!==g.picker)delta[i]=(won?-1:1)*b})}else{delta[g.picker]=(won?2:-2)*b;delta[g.partner]=(won?1:-1)*b;room.players.forEach((p,i)=>{if(!pickerTeam.includes(i))delta[i]=(won?-1:1)*b})}room.players.forEach((p,i)=>p.gameScore+=delta[i]);room.phase='roundEnd';const label=`Picker team ${won?'wins':'loses'} ${pp}–${op}${g.multiplier>1?` (x${g.multiplier})`:''}.`;room.message=`${label} Everyone press Next Round.`;room.history.push({round:room.roundNumber,type:'Normal',summary:label,delta:room.players.map((p,i)=>({name:p.name,change:delta[i]}))});resetReady(room);emit(room)}
@@ -249,7 +298,7 @@ function botLead(room,seat,legal){
   return lowToHigh(tr)[0];
 }
 function botPlay(room,seat){
-  const g=room.game,p=room.players[seat],legal=legalCards(p.hand,g.trick);
+  const g=room.game,p=room.players[seat],legal=legalCardsFor(room,seat);
   if(!g.trick.length)return botLead(room,seat,legal).id;
   const lead=leadClass(g.trick[0].card)==='T'?null:leadClass(g.trick[0].card);
   const current=trickWinner(g.trick), pts=trickPoints(g.trick), last=g.trick.length===4;
@@ -304,7 +353,7 @@ function fallbackBotCall(hand){
   return suits[0]||'ALONE';
 }
 function fallbackBotPlay(room,seat){
-  const g=room.game,p=room.players[seat],legal=legalCards(p.hand,g.trick);
+  const g=room.game,p=room.players[seat],legal=legalCardsFor(room,seat);
   if(!legal.length)return null;
   if(g.mode==='leaster')return [...legal].sort((a,b)=>(POINTS[a.r]*20+strength(a))-(POINTS[b.r]*20+strength(b)))[0].id;
   if(!g.trick.length){const off=legal.filter(c=>!isTrump(c)).sort((a,b)=>strength(a)-strength(b));return (off[0]||[...legal].sort((a,b)=>strength(a)-strength(b))[0]).id}
@@ -389,7 +438,7 @@ function scheduleBots(room){
       if(room.phase==='playing'||room.phase==='leaster'){
         let id;
         try{id=botPlay(room,seat)}catch(err){console.error('Smart bot play failed:',err);id=fallbackBotPlay(room,seat)}
-        const legal=legalCards(p.hand,room.game.trick).map(c=>c.id);
+        const legal=legalCardsFor(room,seat).map(c=>c.id);
         if(!legal.includes(id))id=fallbackBotPlay(room,seat);
         if(id)return playCard(room,seat,id);
       }

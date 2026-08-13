@@ -210,3 +210,16 @@ Sheepshead has many local house-rule variations, so these settings are deliberat
 
 ## v11 bot discard fix
 Bot pickers now commit their two-card bury directly from their current 8-card hand, with a watchdog fallback. This prevents the game from remaining stuck in the discard phase.
+
+
+## v13 changes
+
+- Uses an unbiased Fisher-Yates shuffle driven by Node.js `crypto.randomInt()` for stronger random dealing.
+- Enforces the called-ace partner rule server-side for both humans and bots:
+  - when the called suit is led, the partner must play the called ace;
+  - the called ace cannot be sloughed on another suit while another legal card exists;
+  - the partner cannot lead the called suit while they still hold another fail suit;
+  - if the called suit is their only fail suit, they may lead it, but must lead the called ace.
+
+### Updating the live Render site
+Upload/replace `server.js`, `package.json`, and the `public` folder in the same GitHub repository. Once the commit is saved, Render should auto-deploy the new commit.
