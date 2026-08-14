@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const { randomInt } = require('crypto');
+const { randomInt, randomBytes } = require('crypto');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -21,13 +21,19 @@ const leadClass=c=>isTrump(c)?'T':c.s;
 const suitName=s=>({C:'Clubs',S:'Spades',H:'Hearts',D:'Diamonds'}[s]||s);
 
 function shuffle(a){
-  // Unbiased Fisher-Yates using Node's cryptographic RNG. This avoids the
-  // short-pattern/repeat behavior that can be noticeable with Math.random().
-  const out=[...a];
-  for(let i=out.length-1;i>0;i--){
-    const j=randomInt(i+1);
-    [out[i],out[j]]=[out[j],out[i]];
+  // Three independent cryptographic Fisher-Yates passes plus a secure cut.
+  // One Fisher-Yates pass is already mathematically uniform; the extra passes
+  // do not bias the deck and make each deal depend on fresh OS entropy several
+  // times instead of on a pseudo-random Math.random() sequence.
+  let out=[...a];
+  for(let pass=0;pass<3;pass++){
+    for(let i=out.length-1;i>0;i--){
+      const j=randomInt(i+1);
+      [out[i],out[j]]=[out[j],out[i]];
+    }
   }
+  const cut=randomInt(out.length);
+  out=out.slice(cut).concat(out.slice(0,cut));
   return out;
 }
 function cardBeats(a,b,lead){const at=isTrump(a),bt=isTrump(b);if(at&&bt)return TRUMP_ORDER.indexOf(a.id)<TRUMP_ORDER.indexOf(b.id);if(at&&!bt)return true;if(!at&&bt)return false;if(a.s!==b.s)return a.s===lead;return NONTRUMP_ORDER.indexOf(a.r)<NONTRUMP_ORDER.indexOf(b.r)}
@@ -73,8 +79,8 @@ function legalCardsFor(room,seat){
 }
 function strength(c){return isTrump(c)?200-TRUMP_ORDER.indexOf(c.id)*5:100-NONTRUMP_ORDER.indexOf(c.r)*5}
 function handPower(hand){const tr=hand.filter(isTrump);return tr.length*3.2+tr.reduce((n,c)=>n+(14-TRUMP_ORDER.indexOf(c.id))*.42,0)+hand.reduce((n,c)=>n+POINTS[c.r]*.13,0)}
-function createPlayer(name,socketId=null,isBot=false,avatar='🙂'){return{id:socketId||`bot-${Math.random().toString(36).slice(2,9)}`,name,isBot,avatar,hand:[],tricks:[],gameScore:0,connected:true}}
-function roomCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c;do{c='';for(let i=0;i<5;i++)c+=chars[Math.floor(Math.random()*chars.length)]}while(rooms.has(c));return c}
+function createPlayer(name,socketId=null,isBot=false,avatar='🙂'){return{id:socketId||`bot-${randomBytes(6).toString('hex')}`,name,isBot,avatar,hand:[],tricks:[],gameScore:0,connected:true}}
+function roomCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c;do{c='';for(let i=0;i<5;i++)c+=chars[randomInt(chars.length)]}while(rooms.has(c));return c}
 function sortHands(room){const sn={C:0,S:1,H:2,D:3};for(const p of room.players)p.hand.sort((a,b)=>{if(isTrump(a)!==isTrump(b))return isTrump(a)?-1:1;if(isTrump(a))return TRUMP_ORDER.indexOf(a.id)-TRUMP_ORDER.indexOf(b.id);if(a.s!==b.s)return sn[a.s]-sn[b.s];return NONTRUMP_ORDER.indexOf(a.r)-NONTRUMP_ORDER.indexOf(b.r)})}
 function clampSettings(raw={}){return{allPassMode:raw.allPassMode==='doubler'?'doubler':'leaster',cracking:raw.cracking!==false,blitzers:raw.blitzers!==false,payoutUnit:[0,.25,.5,1].includes(Number(raw.payoutUnit))?Number(raw.payoutUnit):0,password:String(raw.password||'').slice(0,24)}}
 function payoutLabel(room,points){if(!room.settings.payoutUnit)return `${points>0?'+':''}${points}`;const cash=points*room.settings.payoutUnit;return `${points>0?'+':''}${points} (${cash>=0?'+':''}$${cash.toFixed(2)})`}
@@ -95,7 +101,7 @@ function publicState(room,viewerId){
   if(g&&room.phase==='doubling'&&room.settings.blitzers&&viewer){for(const t of ['BLACK','RED'])if(canBlitzHand(viewer.hand,t)&&!g.blitzedBy.some(x=>x.seat===viewerSeat&&x.type===t))blitzOptions.push(t)}
   const readyPhases=['lobby','doubling','trickEnd','roundEnd'];
   return{
-    code:room.code,hostId:room.hostId,phase:room.phase,settings:{...room.settings,password:room.settings.password?'••••':''},
+    code:room.code,hostId:room.hostId,mode:room.mode||'multiplayer',phase:room.phase,settings:{...room.settings,password:room.settings.password?'••••':''},
     players:room.players.map((p,i)=>({id:p.id,name:p.name,avatar:p.avatar,isBot:p.isBot,connected:p.connected,seat:i,cards:p.hand.length,tricks:p.tricks.length/5,gameScore:p.gameScore,payout:payoutLabel(room,p.gameScore)})),
     you:viewerId,dealer:g?.dealer??room.pendingDeal?.dealer??0,current:g?.current??null,picker:g?.picker??null,calledSuit:g?.calledSuit??null,
     partner:g?.partnerRevealed?(g?.partner??null):null,partnerRevealed:g?.partnerRevealed??false,alone:g?.alone??false,trick:g?.trick??[],trickNo:g?.trickNo??0,
@@ -117,7 +123,7 @@ function beginShuffle(room,mode='normal',carryMultiplier=1){
   const dealer=(prevDealer+1)%5;
   room.pendingDeal={mode,carryMultiplier,dealer,multiplier:carryMultiplier};
   for(const p of room.players){p.hand=[];p.tricks=[]}
-  room.game={dealer,current:null,picker:null,blind:[],discard:[],calledSuit:null,partner:null,partnerRevealed:false,alone:false,trick:[],trickNo:0,passed:[],teamPoints:null,multiplier:carryMultiplier,crackCount:0,blitzedBy:[],announcements:[],mode,lastTrickWinner:null};
+  room.game={dealer,current:null,picker:null,blind:[],discard:[],calledSuit:null,partner:null,partnerRevealed:false,alone:false,trick:[],trickNo:0,passed:[],teamPoints:null,multiplier:carryMultiplier,crackCount:0,blitzedBy:[],announcements:[],mode,lastTrickWinner:null,playHistory:[]};
   room.phase='shuffling';
   room.message=`${room.players[dealer].name} is shuffling…`;
   resetReady(room);emit(room);
@@ -127,7 +133,7 @@ function dealRound(room,mode='normal',carryMultiplier=1,dealerOverride=null){
   fillBots(room);const dealer=dealerOverride??((room.game?.dealer??-1)+1)%5;const d=shuffle(deck());for(const p of room.players){p.hand=[];p.tricks=[]}let idx=0,blind=[];
   for(let pass=0;pass<2;pass++){for(let i=1;i<=5;i++){const seat=(dealer+i)%5;room.players[seat].hand.push(...d.slice(idx,idx+3));idx+=3;if(pass===0&&i===2){blind=d.slice(idx,idx+2);idx+=2}}}
   room.pendingDeal=null;room.roundNumber=(room.roundNumber||0)+1;
-  room.game={dealer,current:(dealer+1)%5,picker:null,blind,discard:[],calledSuit:null,partner:null,partnerRevealed:false,alone:false,trick:[],trickNo:0,passed:[],teamPoints:null,multiplier:carryMultiplier,crackCount:0,blitzedBy:[],announcements:[],mode,lastTrickWinner:null};sortHands(room);
+  room.game={dealer,current:(dealer+1)%5,picker:null,blind,discard:[],calledSuit:null,partner:null,partnerRevealed:false,alone:false,trick:[],trickNo:0,passed:[],teamPoints:null,multiplier:carryMultiplier,crackCount:0,blitzedBy:[],announcements:[],mode,lastTrickWinner:null,playHistory:[]};sortHands(room);
   if(mode==='leaster'){room.phase='leaster';room.message='Leaster: lowest card-point total with at least one trick wins.';emit(room);scheduleBots(room)}
   else{room.phase='picking';room.message=`${room.players[room.game.current].name} decides first.`;emit(room);scheduleBots(room)}
 }
@@ -141,7 +147,7 @@ function applyDouble(room,seat,type){const g=room.game;if(room.phase!=='doubling
   else if((type==='BLACK'||type==='RED')&&room.settings.blitzers&&canBlitzHand(room.players[seat].hand,type)&&!g.blitzedBy.some(x=>x.seat===seat&&x.type===type)){g.blitzedBy.push({seat,type});g.multiplier=Math.min(16,g.multiplier*2);room.message=`${room.players[seat].name} called ${type==='BLACK'?'black':'red'} blitzers! x${g.multiplier}`;g.announcements.push(`${room.players[seat].name.toUpperCase()} — ${type} QUEENS BLITZ ×${g.multiplier}`)}
   else return;emit(room);scheduleBots(room)}
 function beginPlay(room){const g=room.game;if(room.phase!=='doubling')return;room.phase='playing';g.current=(g.dealer+1)%5;g.announcements.push(`PLAY BEGINS${g.multiplier>1?` — ×${g.multiplier}`:''}`,`${room.players[g.current].name.toUpperCase()} LEADS`);room.message=`Play begins${g.multiplier>1?` at x${g.multiplier}`:''}. ${room.players[g.current].name} leads.`;resetReady(room);emit(room);scheduleBots(room)}
-function playCard(room,seat,id){const g=room.game;if(!['playing','leaster'].includes(room.phase)||g.current!==seat)return;const p=room.players[seat];const card=p.hand.find(c=>c.id===id);if(!card||!legalCardsFor(room,seat).some(c=>c.id===id))return;p.hand=p.hand.filter(c=>c.id!==id);if(room.phase==='playing'&&g.partner!=null&&!g.partnerRevealed&&seat===g.partner&&g.calledSuit&&card.r==='A'&&card.s===g.calledSuit){g.partnerRevealed=true;room.message=`${p.name} is the partner!`}g.trick.push({seat,card});if(g.trick.length<5){g.current=(g.current+1)%5;room.message=`${room.players[g.current].name}'s turn.`;emit(room);scheduleBots(room);return}const win=trickWinner(g.trick);room.players[win.seat].tricks.push(...g.trick.map(x=>x.card));g.current=win.seat;g.lastTrickWinner=win.seat;g.trickNo++;room.phase='trickEnd';room.message=`${room.players[win.seat].name} took trick ${g.trickNo}. Everyone press Next Trick.`;resetReady(room);emit(room)}
+function playCard(room,seat,id){const g=room.game;if(!['playing','leaster'].includes(room.phase)||g.current!==seat)return;const p=room.players[seat];const card=p.hand.find(c=>c.id===id);if(!card||!legalCardsFor(room,seat).some(c=>c.id===id))return;p.hand=p.hand.filter(c=>c.id!==id);if(room.phase==='playing'&&g.partner!=null&&!g.partnerRevealed&&seat===g.partner&&g.calledSuit&&card.r==='A'&&card.s===g.calledSuit){g.partnerRevealed=true;room.message=`${p.name} is the partner!`}g.playHistory??=[];g.playHistory.push({trickNo:g.trickNo,seat,card:{...card}});g.trick.push({seat,card});if(g.trick.length<5){g.current=(g.current+1)%5;room.message=`${room.players[g.current].name}'s turn.`;emit(room);scheduleBots(room);return}const win=trickWinner(g.trick);room.players[win.seat].tricks.push(...g.trick.map(x=>x.card));g.current=win.seat;g.lastTrickWinner=win.seat;g.trickNo++;room.phase='trickEnd';room.message=`${room.players[win.seat].name} took trick ${g.trickNo}. Everyone press Next Trick.`;resetReady(room);emit(room)}
 function advanceAfterTrick(room){const g=room.game;if(room.phase!=='trickEnd')return;resetReady(room);room.phase='collecting';room.message=`${room.players[g.lastTrickWinner].name} gathers the trick.`;emit(room);setTimeout(()=>{if(room.phase!=='collecting')return;if(g.trickNo===6){g.trick=[];return g.mode==='leaster'?scoreLeaster(room):scoreRound(room)}g.trick=[];g.lastTrickWinner=null;room.phase=g.mode==='leaster'?'leaster':'playing';room.message=`${room.players[g.current].name} leads trick ${g.trickNo+1}.`;emit(room);scheduleBots(room)},1150)}
 function baseScore(pp,op,pickerTricks,oppTricks){const won=pp>=61;if(won){if(oppTricks===0)return 3;if(op<=30)return 2;return 1}else{if(pickerTricks===0)return 3;if(pp<=30)return 2;return 1}}
 function scoreRound(room){const g=room.game;const pickerTeam=[g.picker,...(g.partner!=null?[g.partner]:[])];let pp=g.discard.reduce((s,c)=>s+POINTS[c.r],0),op=0,pt=0,ot=0;room.players.forEach((p,i)=>{const pts=p.tricks.reduce((s,c)=>s+POINTS[c.r],0);if(pickerTeam.includes(i)){pp+=pts;pt+=p.tricks.length/5}else{op+=pts;ot+=p.tricks.length/5}});g.teamPoints={picker:pp,opponents:op};const won=pp>=61,b=baseScore(pp,op,pt,ot)*g.multiplier;const delta=Array(5).fill(0);if(g.partner==null){delta[g.picker]=(won?4:-4)*b;room.players.forEach((p,i)=>{if(i!==g.picker)delta[i]=(won?-1:1)*b})}else{delta[g.picker]=(won?2:-2)*b;delta[g.partner]=(won?1:-1)*b;room.players.forEach((p,i)=>{if(!pickerTeam.includes(i))delta[i]=(won?-1:1)*b})}room.players.forEach((p,i)=>p.gameScore+=delta[i]);room.phase='roundEnd';const label=`Picker team ${won?'wins':'loses'} ${pp}–${op}${g.multiplier>1?` (x${g.multiplier})`:''}.`;room.message=`${label} Everyone press Next Round.`;room.history.push({round:room.roundNumber,type:'Normal',summary:label,delta:room.players.map((p,i)=>({name:p.name,change:delta[i]}))});resetReady(room);emit(room)}
@@ -153,101 +159,99 @@ function botPickScore(hand){
   const topTrump=tr.filter(c=>top.has(c.id)).length;
   const suitCounts=['C','S','H'].map(s=>hand.filter(c=>!isTrump(c)&&c.s===s).length);
   const voids=suitCounts.filter(n=>n===0).length;
-  return tr.length*4.25+topTrump*2.3+offAces*2.4+offTens*.7+voids*.7+hand.reduce((n,c)=>n+POINTS[c.r]*.08,0);
+  const shortSuits=suitCounts.filter(n=>n===1).length;
+  const highTrump=tr.reduce((n,c)=>n+Math.max(0,11-TRUMP_ORDER.indexOf(c.id))*.34,0);
+  return tr.length*4.45+topTrump*2.45+highTrump+offAces*2.65+offTens*.8+voids*.95+shortSuits*.3+hand.reduce((n,c)=>n+POINTS[c.r]*.075,0);
 }
 function botShouldPick(room,seat){
   const g=room.game, hand=room.players[seat].hand, score=botPickScore(hand);
   const trumps=hand.filter(isTrump).length, queens=hand.filter(c=>c.r==='Q').length;
-  // Later seats can loosen up a little, but bots still pass marginal hands.
-  const late=Math.min(2.2,g.passed.length*.55);
-  const threshold=19.2-late;
-  return score>=threshold || (trumps>=4&&score>=16.5) || (queens>=2&&trumps>=3);
+  const top3=hand.filter(c=>['QC','QS','QH'].includes(c.id)).length;
+  // Position matters: later seats can responsibly loosen because fewer players
+  // remain who can pick. Strong top-trump structures are valued more than raw points.
+  const late=Math.min(2.6,g.passed.length*.65);
+  const threshold=19.6-late;
+  return score>=threshold || (trumps>=4&&score>=16.8) || (queens>=2&&trumps>=3) || (top3>=1&&trumps>=5);
+}
+function planScore(keep){
+  const tr=keep.filter(isTrump), off=keep.filter(c=>!isTrump(c));
+  let score=botPickScore(keep)*1.1;
+  for(const suit of ['C','S','H']){
+    const cards=off.filter(c=>c.s===suit);
+    if(cards.length===0)score+=3.8; // useful void for trumping later
+    if(cards.length===1&&cards[0].r==='A')score+=3.4;
+    if(cards.length===1&&cards[0].r==='10')score-=1.0;
+    if(cards.length>=3)score-=.8*(cards.length-2);
+  }
+  if(tr.length>=5)score+=2.2;
+  return score;
 }
 function botDiscard(hand){
-  // Picker has 8 cards after taking the blind. Score every possible 2-card bury
-  // and always return two distinct card IDs from the CURRENT hand.
+  // Exhaustively examine every legal two-card bury (28 possibilities from 8).
+  // Score both the points safely buried and the quality/shape of the six-card hand left.
   if(!Array.isArray(hand)||hand.length<2)return [];
   let best=null;
   for(let i=0;i<hand.length-1;i++)for(let j=i+1;j<hand.length;j++){
     const pair=[hand[i],hand[j]], keep=hand.filter((_,k)=>k!==i&&k!==j);
-    let score=pair.reduce((n,c)=>n+(POINTS[c.r]||0)*1.45,0);
+    let score=planScore(keep);
+    score+=pair.reduce((n,c)=>n+(POINTS[c.r]||0)*1.65,0);
     for(const c of pair){
       if(isTrump(c)){
         const ti=TRUMP_ORDER.indexOf(c.id);
-        score-=11+Math.max(0,14-(ti<0?14:ti))*.9;
+        score-=9.5+Math.max(0,13-(ti<0?13:ti))*1.15;
       }
-      if(!isTrump(c)&&c.r==='A')score-=15;
-      if(!isTrump(c)&&c.r==='10')score+=3;
-      if(!isTrump(c)&&c.r==='K')score+=1.5;
-    }
-    for(const suit of ['C','S','H']){
-      const before=hand.filter(c=>!isTrump(c)&&c.s===suit).length;
-      const after=keep.filter(c=>!isTrump(c)&&c.s===suit).length;
-      if(before>0&&after===0)score+=5.5;
-      if(after===1&&keep.some(c=>!isTrump(c)&&c.s===suit&&c.r==='A'))score+=1.5;
+      if(!isTrump(c)&&c.r==='A')score-=17;
+      if(!isTrump(c)&&c.r==='10')score+=2.4;
+      if(!isTrump(c)&&c.r==='K')score+=1.0;
     }
     const callable=['C','S','H'].filter(s=>!keep.some(c=>c.r==='A'&&c.s===s)&&keep.some(c=>!isTrump(c)&&c.s===s));
-    const aloneQuality=botPickScore(keep)>=27&&keep.filter(isTrump).length>=5;
-    if(!callable.length&&!aloneQuality)score-=18;
+    const aloneQuality=botPickScore(keep)>=30&&keep.filter(isTrump).length>=5;
+    if(!callable.length&&!aloneQuality)score-=25;
     if(!best||score>best.score)best={score,ids:[pair[0].id,pair[1].id]};
   }
   return best?.ids||hand.slice(0,2).map(c=>c.id);
 }
 
 function runBotDiscard(room,seat){
-  // Bot pickup/discard uses its own state transition instead of routing through
-  // the human discard handler. This avoids a bot ever getting stranded in the
-  // discard phase after taking the blind.
   if(!room?.game||room.phase!=='discard'||room.game.picker!==seat)return false;
   const p=room.players[seat];
   if(!p?.isBot||!Array.isArray(p.hand)||p.hand.length<2)return false;
-
   const chooseValidIds=()=>{
     const currentIds=new Set(p.hand.map(c=>c.id));
     let ids=[];
-    try{ ids=botDiscard(p.hand); }catch(err){ console.error('Smart bot discard failed:',err); }
+    try{ids=botDiscard(p.hand)}catch(err){console.error('Smart bot discard failed:',err)}
     const valid=x=>Array.isArray(x)&&x.length===2&&x[0]!==x[1]&&x.every(id=>currentIds.has(id));
-    if(!valid(ids)){
-      try{ ids=fallbackBotDiscard(p.hand); }catch(err){ console.error('Fallback bot discard failed:',err); }
-    }
+    if(!valid(ids)){try{ids=fallbackBotDiscard(p.hand)}catch(err){console.error('Fallback bot discard failed:',err)}}
     if(!valid(ids))ids=p.hand.slice(0,2).map(c=>c.id);
     return valid(ids)?ids:null;
   };
-
-  const ids=chooseValidIds();
-  if(!ids)return false;
-  const cards=ids.map(id=>p.hand.find(c=>c.id===id)).filter(Boolean);
-  if(cards.length!==2)return false;
-
-  // Commit the discard atomically from the bot's current 8-card hand.
-  const bury=new Set(ids);
-  p.hand=p.hand.filter(c=>!bury.has(c.id));
-  if(p.hand.length!==6){
-    // Restore and fail safely if anything unexpected happened.
-    p.hand.push(...cards);
-    sortHands(room);
-    return false;
-  }
-  room.game.discard=cards;
-  room.phase='call';
-  room.message=`${p.name} buried two cards and is choosing a partner.`;
-  console.log(`[BOT] ${p.name} discarded ${ids.join(', ')}; 6 cards remain.`);
-  emit(room);
-  scheduleBots(room);
-  return true;
+  const ids=chooseValidIds();if(!ids)return false;
+  const cards=ids.map(id=>p.hand.find(c=>c.id===id)).filter(Boolean);if(cards.length!==2)return false;
+  const bury=new Set(ids);p.hand=p.hand.filter(c=>!bury.has(c.id));
+  if(p.hand.length!==6){p.hand.push(...cards);sortHands(room);return false}
+  room.game.discard=cards;room.phase='call';room.message=`${p.name} buried two cards and is choosing a partner.`;
+  console.log(`[BOT] ${p.name} discarded ${ids.join(', ')}; 6 cards remain.`);emit(room);scheduleBots(room);return true;
 }
 
 function botCallChoice(hand){
   const trumps=hand.filter(isTrump).length;
-  if(trumps>=5&&botPickScore(hand)>=27.5)return 'ALONE';
+  const topTrump=hand.filter(c=>['QC','QS','QH','QD','JC','JS'].includes(c.id)).length;
+  // Alone should be genuinely strong; a partner is worth a lot in five-player play.
+  if(trumps>=6&&topTrump>=3&&botPickScore(hand)>=32)return 'ALONE';
+  if(trumps>=5&&topTrump>=4&&botPickScore(hand)>=34)return 'ALONE';
   const choices=['C','S','H'].filter(s=>!hand.some(c=>c.r==='A'&&c.s===s)&&hand.some(c=>!isTrump(c)&&c.s===s));
   if(!choices.length)return 'ALONE';
-  const rankCost={7:0,8:1,9:2,K:4,'10':7,A:9};
+  const rankValue={7:0,8:.5,9:1,K:2.5,'10':5.5,A:10};
+  // Prefer a short called suit with a low card to lead into the partner's ace.
+  // A ten in that suit can be useful to smear behind the forced ace, so it is not fatal.
   choices.sort((a,b)=>{
-    const ah=hand.filter(c=>!isTrump(c)&&c.s===a), bh=hand.filter(c=>!isTrump(c)&&c.s===b);
-    const as=ah.length*5+Math.min(...ah.map(c=>rankCost[c.r]??5));
-    const bs=bh.length*5+Math.min(...bh.map(c=>rankCost[c.r]??5));
-    return as-bs;
+    const evalSuit=s=>{
+      const cards=hand.filter(c=>!isTrump(c)&&c.s===s);
+      const low=Math.min(...cards.map(c=>rankValue[c.r]??3));
+      const ten=cards.some(c=>c.r==='10')?1.2:0;
+      return cards.length*4.2+low-ten;
+    };
+    return evalSuit(a)-evalSuit(b);
   });
   return choices[0];
 }
@@ -258,90 +262,132 @@ function knownSameTeam(g,seat,other){
   if(seat===other)return true;
   if(g.mode==='leaster')return false;
   if(seat===g.picker)return g.partnerRevealed&&other===g.partner;
-  if(seat===g.partner)return other===g.picker;
+  if(seat===g.partner)return other===g.picker; // partner knows they hold the called ace
   if(other===g.picker)return false;
   if(g.partnerRevealed&&other===g.partner)return false;
-  // Defenders know other non-picker, non-revealed-partner seats are defenders only after partner is public.
-  return g.partnerRevealed && seat!==g.partner && other!==g.partner;
+  return g.partnerRevealed&&seat!==g.partner&&other!==g.partner;
 }
+function publicKnownIds(room,seat){
+  const g=room.game, ids=new Set(room.players[seat].hand.map(c=>c.id));
+  for(const x of g.playHistory||[])ids.add(x.card.id);
+  for(const x of g.trick||[])ids.add(x.card.id);
+  // Only the picker knows what they buried. Do not let defenders cheat.
+  if(seat===g.picker)for(const c of g.discard||[])ids.add(c.id);
+  return ids;
+}
+function unseenCards(room,seat){const known=publicKnownIds(room,seat);return deck().filter(c=>!known.has(c.id))}
+function inferredVoid(room,other,cls){
+  // A player who failed to follow a class on a prior trick is publicly known void in it.
+  const hist=room.game.playHistory||[];
+  const grouped=new Map();
+  for(const x of hist){if(!grouped.has(x.trickNo))grouped.set(x.trickNo,[]);grouped.get(x.trickNo).push(x)}
+  for(const plays of grouped.values()){
+    if(plays.length<2)continue;
+    const lead=leadClass(plays[0].card);
+    if(lead!==cls)continue;
+    const mine=plays.find(x=>x.seat===other);
+    if(mine&&leadClass(mine.card)!==cls)return true;
+  }
+  return false;
+}
+function highestUnseenTrumpIndex(room,seat){
+  const unseen=unseenCards(room,seat).filter(isTrump);
+  return unseen.length?Math.min(...unseen.map(c=>TRUMP_ORDER.indexOf(c.id))):99;
+}
+function isMasterTrump(room,seat,c){return isTrump(c)&&TRUMP_ORDER.indexOf(c.id)<highestUnseenTrumpIndex(room,seat)}
 function botLead(room,seat,legal){
-  const g=room.game,p=room.players[seat], tr=legal.filter(isTrump), off=legal.filter(c=>!isTrump(c));
+  const g=room.game,p=room.players[seat],tr=legal.filter(isTrump),off=legal.filter(c=>!isTrump(c));
   const offAces=off.filter(c=>c.r==='A');
   if(g.mode==='leaster'){
-    // Avoid taking control: lead low cards; avoid aces and high trump unless forced.
-    return [...legal].sort((a,b)=>(POINTS[a.r]*30+strength(a))-(POINTS[b.r]*30+strength(b)))[0];
+    const needTrick=(p.tricks.length===0&&g.trickNo>=4);
+    if(needTrick){
+      const masters=legal.filter(c=>isMasterTrump(room,seat,c));
+      if(masters.length)return lowToHigh(masters)[0];
+      if(offAces.length)return offAces[0];
+    }
+    return [...legal].sort((a,b)=>(POINTS[a.r]*35+strength(a))-(POINTS[b.r]*35+strength(b)))[0];
   }
+  const called=g.calledSuit;
+  const calledCards=off.filter(c=>c.s===called);
   if(seat===g.picker){
-    // Picker usually wants to pull trump early when strong, then cash side aces.
+    // Pull trump while control is good. Master trump is especially valuable early.
     if(g.trickNo<=2&&tr.length>=2){
+      const master=tr.find(c=>isMasterTrump(room,seat,c));
+      if(master)return master;
       const ordered=[...tr].sort((a,b)=>TRUMP_ORDER.indexOf(a.id)-TRUMP_ORDER.indexOf(b.id));
       return ordered[Math.min(ordered.length-1,Math.max(0,Math.floor(ordered.length/2)-1))];
     }
+    // After drawing trump, lead the called suit low to force the partner ace/reveal.
+    if(!g.partnerRevealed&&calledCards.length)return [...calledCards].sort((a,b)=>strength(a)-strength(b))[0];
     if(offAces.length)return offAces[0];
     if(tr.length)return lowToHigh(tr)[0];
   }
   if(seat===g.partner){
-    // Partner supports picker with a useful ace, otherwise preserves trump for captures.
-    const safeAce=offAces.find(c=>!g.calledSuit||c.s!==g.calledSuit)||offAces[0];
+    const safeAce=offAces.find(c=>!called||c.s!==called);
     if(safeAce)return safeAce;
     if(off.length)return lowToHigh(off)[0];
+    return lowToHigh(tr)[0];
   }
-  // Defenders cash side aces and otherwise lead low off-suit cards to probe picker/partner.
+  // Defenders often want to force the called ace early to expose the partner.
+  if(!g.partnerRevealed&&calledCards.length)return [...calledCards].sort((a,b)=>strength(a)-strength(b))[0];
   if(offAces.length)return offAces[0];
   if(off.length){
-    const bySuit=[...off].sort((a,b)=>{
-      const ca=p.hand.filter(c=>!isTrump(c)&&c.s===a.s).length, cb=p.hand.filter(c=>!isTrump(c)&&c.s===b.s).length;
-      return ca-cb || strength(a)-strength(b);
-    });
-    return bySuit[0];
+    return [...off].sort((a,b)=>{
+      const ca=p.hand.filter(c=>!isTrump(c)&&c.s===a.s).length,cb=p.hand.filter(c=>!isTrump(c)&&c.s===b.s).length;
+      return ca-cb||strength(a)-strength(b);
+    })[0];
   }
   return lowToHigh(tr)[0];
 }
 function botPlay(room,seat){
   const g=room.game,p=room.players[seat],legal=legalCardsFor(room,seat);
+  if(!legal.length)return null;
   if(!g.trick.length)return botLead(room,seat,legal).id;
-  const lead=leadClass(g.trick[0].card)==='T'?null:leadClass(g.trick[0].card);
-  const current=trickWinner(g.trick), pts=trickPoints(g.trick), last=g.trick.length===4;
+  const leadCls=leadClass(g.trick[0].card),lead=leadCls==='T'?null:leadCls;
+  const current=trickWinner(g.trick),pts=trickPoints(g.trick),last=g.trick.length===4;
   const winners=legal.filter(c=>cardBeats(c,current.card,lead));
   const losers=legal.filter(c=>!cardBeats(c,current.card,lead));
-
   if(g.mode==='leaster'){
-    // In a leaster, avoid winning if possible; if forced to win, use the least costly winner.
-    if(losers.length)return [...losers].sort((a,b)=>(POINTS[a.r]*25+strength(a))-(POINTS[b.r]*25+strength(b)))[0].id;
-    return [...winners].sort((a,b)=>(POINTS[a.r]*25+strength(a))-(POINTS[b.r]*25+strength(b)))[0].id;
-  }
-
-  const teammateWinning=knownSameTeam(g,seat,current.seat);
-  if(teammateWinning){
-    // Feed points to a known teammate without unnecessarily overtaking them.
-    if(losers.length){
-      return [...losers].sort((a,b)=>(POINTS[b.r]-POINTS[a.r]) || (strength(a)-strength(b)))[0].id;
-    }
+    const needTrick=p.tricks.length===0&&g.trickNo>=4;
+    if(!needTrick&&losers.length)return [...losers].sort((a,b)=>(POINTS[a.r]*35+strength(a))-(POINTS[b.r]*35+strength(b)))[0].id;
+    if(winners.length)return [...winners].sort((a,b)=>(POINTS[a.r]*35+strength(a))-(POINTS[b.r]*35+strength(b)))[0].id;
     return lowToHigh(legal)[0].id;
   }
-
+  const teammateWinning=knownSameTeam(g,seat,current.seat);
+  if(teammateWinning){
+    if(last){
+      // Nobody can overtake after us: smear the largest point card that still loses.
+      if(losers.length)return [...losers].sort((a,b)=>(POINTS[b.r]-POINTS[a.r])||(strength(a)-strength(b)))[0].id;
+      return lowToHigh(legal)[0].id;
+    }
+    // Earlier in trick, feed points only if we can do it without spending trump/high control.
+    const safe=losers.filter(c=>!isTrump(c));
+    if(safe.length)return [...safe].sort((a,b)=>(POINTS[b.r]-POINTS[a.r])||(strength(a)-strength(b)))[0].id;
+    if(losers.length)return lowToHigh(losers)[0].id;
+    return lowToHigh(legal)[0].id;
+  }
   if(winners.length){
     const cheapest=cheapWinner(legal,current,lead);
-    // Take valuable tricks, always take on last seat, and be more aggressive against the picker.
     const currentIsPicker=current.seat===g.picker;
-    if(last||pts>=10||currentIsPicker||POINTS[cheapest.r]<=4)return cheapest.id;
+    const master=isMasterTrump(room,seat,cheapest);
+    // Last seat has perfect information. Earlier seats capture valuable tricks,
+    // picker tricks, or use cheap/master winners; otherwise preserve control.
+    if(last||pts>=8||currentIsPicker||POINTS[cheapest.r]<=4||master)return cheapest.id;
   }
-
-  // Can't/shouldn't win: shed low-risk cards. When an opponent is winning, don't donate an A/10 unless forced.
   const pool=losers.length?losers:legal;
   return [...pool].sort((a,b)=>{
-    const riskA=(POINTS[a.r]*9)+(isTrump(a)?strength(a)*.04:0);
-    const riskB=(POINTS[b.r]*9)+(isTrump(b)?strength(b)*.04:0);
-    return riskA-riskB || strength(a)-strength(b);
+    // Avoid donating A/10 and avoid wasting trump when an opponent already owns the trick.
+    const riskA=POINTS[a.r]*11+(isTrump(a)?Math.max(0,18-TRUMP_ORDER.indexOf(a.id))*2.2:0);
+    const riskB=POINTS[b.r]*11+(isTrump(b)?Math.max(0,18-TRUMP_ORDER.indexOf(b.id))*2.2:0);
+    return riskA-riskB||strength(a)-strength(b);
   })[0].id;
 }
 function botDoubleDecision(room,x){
-  const g=room.game, score=botPickScore(x.p.hand), trumps=x.p.hand.filter(isTrump).length;
-  if(room.settings.blitzers){
-    for(const t of ['BLACK','RED'])if(canBlitzHand(x.p.hand,t)&&!g.blitzedBy.some(y=>y.seat===x.i&&y.type===t))return t;
-  }
-  if(room.settings.cracking&&g.crackCount===0&&eligibleCrackers(room).includes(x.i)&&score>=24.5&&trumps>=3)return 'CRACK';
-  if(room.settings.cracking&&g.crackCount===1&&(x.i===g.picker||x.i===g.partner)&&score>=26.5)return 'RECRACK';
+  const g=room.game,score=botPickScore(x.p.hand),trumps=x.p.hand.filter(isTrump).length,top=x.p.hand.filter(c=>['QC','QS','QH','QD','JC','JS'].includes(c.id)).length;
+  if(room.settings.blitzers){for(const t of ['BLACK','RED'])if(canBlitzHand(x.p.hand,t)&&!g.blitzedBy.some(y=>y.seat===x.i&&y.type===t))return t}
+  // Cracks are intentionally selective: bad cracks are much more expensive than passes.
+  if(room.settings.cracking&&g.crackCount===0&&eligibleCrackers(room).includes(x.i)&&score>=27&&trumps>=4&&top>=1)return 'CRACK';
+  if(room.settings.cracking&&g.crackCount===1&&(x.i===g.picker||x.i===g.partner)&&score>=29&&trumps>=4)return 'RECRACK';
   return null;
 }
 function fallbackBotDiscard(hand){
@@ -450,7 +496,7 @@ function scheduleBots(room){
       if(room.phase==='call'&&room.game.picker===seat)return callPartner(room,seat,fallbackBotCall(p.hand));
       if(['playing','leaster'].includes(room.phase)&&room.game.current===seat){const id=fallbackBotPlay(room,seat);if(id)return playCard(room,seat,id)}
     }
-  },950+Math.random()*450);
+  },950+randomInt(451));
 }
 
 function markReady(room,socketId,kind){
@@ -468,8 +514,8 @@ function markReady(room,socketId,kind){
 function maybeAdvanceBarrier(room){if(!room||!['lobby','doubling','trickEnd','roundEnd'].includes(room.phase)||!allHumansReady(room))return;if(room.phase==='lobby')startRound(room);else if(room.phase==='doubling')beginPlay(room);else if(room.phase==='trickEnd')advanceAfterTrick(room);else if(room.phase==='roundEnd')startRound(room)}
 
 io.on('connection',socket=>{
- socket.on('createRoom',({name,avatar,settings})=>{const code=roomCode(),player=createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,4)),room={code,hostId:socket.id,players:[player],phase:'lobby',game:null,message:'Invite friends. Every human presses Start when ready.',settings:clampSettings(settings),history:[],roundNumber:0,nextMultiplier:1,readySet:new Set(),pendingDeal:null};rooms.set(code,room);socket.join(code);socket.data.code=code;emit(room)});
- socket.on('joinRoom',({code,name,avatar,password})=>{code=(code||'').toUpperCase().trim();const room=rooms.get(code);if(!room)return socket.emit('errorMsg','Room not found.');if(room.phase!=='lobby')return socket.emit('errorMsg','That game already started.');if(room.settings.password&&String(password||'')!==room.settings.password)return socket.emit('errorMsg','Wrong table password.');if(room.players.length>=5)return socket.emit('errorMsg','Room is full.');room.players.push(createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,4)));socket.join(code);socket.data.code=code;room.message='Every human presses Start when ready.';emit(room)});
+ socket.on('createRoom',({name,avatar,settings,mode})=>{const roomMode=mode==='single'?'single':'multiplayer',code=roomCode(),player=createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,4)),room={code,mode:roomMode,hostId:socket.id,players:[player],phase:'lobby',game:null,message:roomMode==='single'?'Single player ready. Press Start game when you are ready.':'Invite friends. Every human presses Start when ready.',settings:clampSettings(settings),history:[],roundNumber:0,nextMultiplier:1,readySet:new Set(),pendingDeal:null};rooms.set(code,room);socket.join(code);socket.data.code=code;emit(room)});
+ socket.on('joinRoom',({code,name,avatar,password})=>{code=(code||'').toUpperCase().trim();const room=rooms.get(code);if(!room)return socket.emit('errorMsg','Room not found.');if(room.mode==='single')return socket.emit('errorMsg','That is a single-player table.');if(room.phase!=='lobby')return socket.emit('errorMsg','That game already started.');if(room.settings.password&&String(password||'')!==room.settings.password)return socket.emit('errorMsg','Wrong table password.');if(room.players.length>=5)return socket.emit('errorMsg','Room is full.');room.players.push(createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,4)));socket.join(code);socket.data.code=code;room.message='Every human presses Start when ready.';emit(room)});
  socket.on('readyStart',()=>markReady(rooms.get(socket.data.code),socket.id,'START'));
  socket.on('readyPlay',()=>markReady(rooms.get(socket.data.code),socket.id,'PLAY'));
  socket.on('nextTrick',()=>markReady(rooms.get(socket.data.code),socket.id,'TRICK'));
