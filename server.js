@@ -3,12 +3,77 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const { randomInt, randomBytes } = require('crypto');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+app.use(express.json({limit:'32kb'}));
 app.use(express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 3000;
 const rooms = new Map();
+
+// --- Persistent accounts ---------------------------------------------------
+// Set DATABASE_URL and JWT_SECRET in Render. The game still works as a guest
+// without them, but signed-in career data requires the database.
+const DATABASE_URL=process.env.DATABASE_URL||'';
+const JWT_SECRET=process.env.JWT_SECRET||'';
+const pool=DATABASE_URL?new Pool({connectionString:DATABASE_URL,ssl:DATABASE_URL.includes('localhost')?false:{rejectUnauthorized:false}}):null;
+let dbReady=false;
+async function initDb(){
+  if(!pool)return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS sheepshead_users (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    name VARCHAR(18) NOT NULL DEFAULT 'Player',
+    avatar VARCHAR(8) NOT NULL DEFAULT '🙂',
+    career_score INTEGER NOT NULL DEFAULT 0,
+    hands INTEGER NOT NULL DEFAULT 0,
+    best_score INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  dbReady=true;
+  console.log('Account database ready.');
+}
+initDb().catch(e=>console.error('Account database unavailable:',e.message));
+function cleanUser(r){return{id:String(r.id),email:r.email,name:r.name,avatar:r.avatar,careerScore:r.career_score,hands:r.hands,bestScore:r.best_score}}
+function signToken(id){return jwt.sign({sub:String(id)},JWT_SECRET,{expiresIn:'30d'})}
+function tokenUserId(token){if(!JWT_SECRET||!token)return null;try{return jwt.verify(token,JWT_SECRET).sub||null}catch{return null}}
+function bearer(req){return String(req.headers.authorization||'').replace(/^Bearer\s+/i,'')}
+async function requireUser(req,res,next){
+  if(!pool||!dbReady||!JWT_SECRET)return res.status(503).json({error:'Accounts are not configured yet.'});
+  const id=tokenUserId(bearer(req));if(!id)return res.status(401).json({error:'Please sign in again.'});
+  const q=await pool.query('SELECT * FROM sheepshead_users WHERE id=$1',[id]);if(!q.rows[0])return res.status(401).json({error:'Account not found.'});req.user=q.rows[0];next();
+}
+app.get('/api/auth/status',(req,res)=>res.json({configured:!!(pool&&JWT_SECRET),ready:dbReady}));
+app.post('/api/auth/signup',async(req,res)=>{try{
+  if(!pool||!dbReady||!JWT_SECRET)return res.status(503).json({error:'Accounts are not configured yet.'});
+  const email=String(req.body.email||'').trim().toLowerCase(),password=String(req.body.password||''),name=String(req.body.name||'Player').trim().slice(0,18)||'Player',avatar=String(req.body.avatar||'🙂').slice(0,8);
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return res.status(400).json({error:'Enter a valid email.'});
+  if(password.length<8)return res.status(400).json({error:'Password must be at least 8 characters.'});
+  const hash=await bcrypt.hash(password,12);
+  const q=await pool.query('INSERT INTO sheepshead_users(email,password_hash,name,avatar) VALUES($1,$2,$3,$4) RETURNING *',[email,hash,name,avatar]);
+  res.json({token:signToken(q.rows[0].id),user:cleanUser(q.rows[0])});
+}catch(e){if(e.code==='23505')return res.status(409).json({error:'An account with that email already exists.'});console.error(e);res.status(500).json({error:'Could not create account.'})}});
+app.post('/api/auth/login',async(req,res)=>{try{
+  if(!pool||!dbReady||!JWT_SECRET)return res.status(503).json({error:'Accounts are not configured yet.'});
+  const email=String(req.body.email||'').trim().toLowerCase(),password=String(req.body.password||'');
+  const q=await pool.query('SELECT * FROM sheepshead_users WHERE email=$1',[email]);const u=q.rows[0];
+  if(!u||!(await bcrypt.compare(password,u.password_hash)))return res.status(401).json({error:'Email or password is incorrect.'});
+  res.json({token:signToken(u.id),user:cleanUser(u)});
+}catch(e){console.error(e);res.status(500).json({error:'Could not sign in.'})}});
+app.get('/api/me',requireUser,(req,res)=>res.json({user:cleanUser(req.user)}));
+app.patch('/api/me',requireUser,async(req,res)=>{try{const name=String(req.body.name||req.user.name).trim().slice(0,18)||'Player',avatar=String(req.body.avatar||req.user.avatar).slice(0,8);const q=await pool.query('UPDATE sheepshead_users SET name=$1,avatar=$2 WHERE id=$3 RETURNING *',[name,avatar,req.user.id]);res.json({user:cleanUser(q.rows[0])})}catch(e){res.status(500).json({error:'Could not update profile.'})}});
+app.post('/api/me/reset',requireUser,async(req,res)=>{try{const q=await pool.query('UPDATE sheepshead_users SET career_score=0,hands=0,best_score=0 WHERE id=$1 RETURNING *',[req.user.id]);res.json({user:cleanUser(q.rows[0])})}catch(e){res.status(500).json({error:'Could not reset career.'})}});
+async function recordCareer(room,delta){
+  if(room.mode!=='single'||!pool||!dbReady)return;
+  const p=room.players.find(x=>!x.isBot&&x.accountId);if(!p)return;
+  try{await pool.query('UPDATE sheepshead_users SET career_score=career_score+$1,hands=hands+1,best_score=GREATEST(best_score,career_score+$1) WHERE id=$2',[Number(delta)||0,p.accountId]);}
+  catch(e){console.error('Career save failed:',e.message)}
+}
+
 
 const SUITS=['C','S','H','D'];
 const RANKS=['7','8','9','K','10','A','J','Q'];
@@ -79,7 +144,7 @@ function legalCardsFor(room,seat){
 }
 function strength(c){return isTrump(c)?200-TRUMP_ORDER.indexOf(c.id)*5:100-NONTRUMP_ORDER.indexOf(c.r)*5}
 function handPower(hand){const tr=hand.filter(isTrump);return tr.length*3.2+tr.reduce((n,c)=>n+(14-TRUMP_ORDER.indexOf(c.id))*.42,0)+hand.reduce((n,c)=>n+POINTS[c.r]*.13,0)}
-function createPlayer(name,socketId=null,isBot=false,avatar='🙂'){return{id:socketId||`bot-${randomBytes(6).toString('hex')}`,name,isBot,avatar,hand:[],tricks:[],gameScore:0,connected:true}}
+function createPlayer(name,socketId=null,isBot=false,avatar='🙂',accountId=null){return{id:socketId||`bot-${randomBytes(6).toString('hex')}`,name,isBot,avatar,accountId,hand:[],tricks:[],gameScore:0,connected:true}}
 function roomCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c;do{c='';for(let i=0;i<5;i++)c+=chars[randomInt(chars.length)]}while(rooms.has(c));return c}
 function sortHands(room){const sn={C:0,S:1,H:2,D:3};for(const p of room.players)p.hand.sort((a,b)=>{if(isTrump(a)!==isTrump(b))return isTrump(a)?-1:1;if(isTrump(a))return TRUMP_ORDER.indexOf(a.id)-TRUMP_ORDER.indexOf(b.id);if(a.s!==b.s)return sn[a.s]-sn[b.s];return NONTRUMP_ORDER.indexOf(a.r)-NONTRUMP_ORDER.indexOf(b.r)})}
 function clampSettings(raw={}){return{allPassMode:raw.allPassMode==='doubler'?'doubler':'leaster',cracking:raw.cracking!==false,blitzers:raw.blitzers!==false,payoutUnit:[0,.25,.5,1].includes(Number(raw.payoutUnit))?Number(raw.payoutUnit):0,password:String(raw.password||'').slice(0,24)}}
@@ -150,8 +215,8 @@ function beginPlay(room){const g=room.game;if(room.phase!=='doubling')return;roo
 function playCard(room,seat,id){const g=room.game;if(!['playing','leaster'].includes(room.phase)||g.current!==seat)return;const p=room.players[seat];const card=p.hand.find(c=>c.id===id);if(!card||!legalCardsFor(room,seat).some(c=>c.id===id))return;p.hand=p.hand.filter(c=>c.id!==id);if(room.phase==='playing'&&g.partner!=null&&!g.partnerRevealed&&seat===g.partner&&g.calledSuit&&card.r==='A'&&card.s===g.calledSuit){g.partnerRevealed=true;room.message=`${p.name} is the partner!`}g.playHistory??=[];g.playHistory.push({trickNo:g.trickNo,seat,card:{...card}});g.trick.push({seat,card});if(g.trick.length<5){g.current=(g.current+1)%5;room.message=`${room.players[g.current].name}'s turn.`;emit(room);scheduleBots(room);return}const win=trickWinner(g.trick);room.players[win.seat].tricks.push(...g.trick.map(x=>x.card));g.current=win.seat;g.lastTrickWinner=win.seat;g.trickNo++;room.phase='trickEnd';room.message=`${room.players[win.seat].name} took trick ${g.trickNo}. Everyone press Next Trick.`;resetReady(room);emit(room)}
 function advanceAfterTrick(room){const g=room.game;if(room.phase!=='trickEnd')return;resetReady(room);room.phase='collecting';room.message=`${room.players[g.lastTrickWinner].name} gathers the trick.`;emit(room);setTimeout(()=>{if(room.phase!=='collecting')return;if(g.trickNo===6){g.trick=[];return g.mode==='leaster'?scoreLeaster(room):scoreRound(room)}g.trick=[];g.lastTrickWinner=null;room.phase=g.mode==='leaster'?'leaster':'playing';room.message=`${room.players[g.current].name} leads trick ${g.trickNo+1}.`;emit(room);scheduleBots(room)},1150)}
 function baseScore(pp,op,pickerTricks,oppTricks){const won=pp>=61;if(won){if(oppTricks===0)return 3;if(op<=30)return 2;return 1}else{if(pickerTricks===0)return 3;if(pp<=30)return 2;return 1}}
-function scoreRound(room){const g=room.game;const pickerTeam=[g.picker,...(g.partner!=null?[g.partner]:[])];let pp=g.discard.reduce((s,c)=>s+POINTS[c.r],0),op=0,pt=0,ot=0;room.players.forEach((p,i)=>{const pts=p.tricks.reduce((s,c)=>s+POINTS[c.r],0);if(pickerTeam.includes(i)){pp+=pts;pt+=p.tricks.length/5}else{op+=pts;ot+=p.tricks.length/5}});g.teamPoints={picker:pp,opponents:op};const won=pp>=61,b=baseScore(pp,op,pt,ot)*g.multiplier;const delta=Array(5).fill(0);if(g.partner==null){delta[g.picker]=(won?4:-4)*b;room.players.forEach((p,i)=>{if(i!==g.picker)delta[i]=(won?-1:1)*b})}else{delta[g.picker]=(won?2:-2)*b;delta[g.partner]=(won?1:-1)*b;room.players.forEach((p,i)=>{if(!pickerTeam.includes(i))delta[i]=(won?-1:1)*b})}room.players.forEach((p,i)=>p.gameScore+=delta[i]);room.phase='roundEnd';const label=`Picker team ${won?'wins':'loses'} ${pp}–${op}${g.multiplier>1?` (x${g.multiplier})`:''}.`;room.message=`${label} Everyone press Next Round.`;room.history.push({round:room.roundNumber,type:'Normal',summary:label,delta:room.players.map((p,i)=>({name:p.name,change:delta[i]}))});resetReady(room);emit(room)}
-function scoreLeaster(room){const g=room.game;const lastWinner=g.current;if(g.blind.length)room.players[lastWinner].tricks.push(...g.blind);const totals=room.players.map(p=>p.tricks.reduce((s,c)=>s+POINTS[c.r],0));const eligible=room.players.map((p,i)=>({i,pts:totals[i],tricks:p.tricks.length/5})).filter(x=>x.tricks>0);const min=Math.min(...eligible.map(x=>x.pts));const winners=eligible.filter(x=>x.pts===min);const delta=Array(5).fill(0);let summary;if(winners.length===1){const w=winners[0].i,m=g.multiplier;delta[w]=4*m;room.players.forEach((p,i)=>{if(i!==w)delta[i]=-1*m});summary=`Leaster: ${room.players[w].name} wins with ${min} points.`}else summary=`Leaster tie at ${min} points — no score.`;room.players.forEach((p,i)=>p.gameScore+=delta[i]);room.phase='roundEnd';room.message=`${summary} Everyone press Next Round.`;room.history.push({round:room.roundNumber,type:'Leaster',summary,delta:room.players.map((p,i)=>({name:p.name,change:delta[i]}))});resetReady(room);emit(room)}
+function scoreRound(room){const g=room.game;const pickerTeam=[g.picker,...(g.partner!=null?[g.partner]:[])];let pp=g.discard.reduce((s,c)=>s+POINTS[c.r],0),op=0,pt=0,ot=0;room.players.forEach((p,i)=>{const pts=p.tricks.reduce((s,c)=>s+POINTS[c.r],0);if(pickerTeam.includes(i)){pp+=pts;pt+=p.tricks.length/5}else{op+=pts;ot+=p.tricks.length/5}});g.teamPoints={picker:pp,opponents:op};const won=pp>=61,b=baseScore(pp,op,pt,ot)*g.multiplier;const delta=Array(5).fill(0);if(g.partner==null){delta[g.picker]=(won?4:-4)*b;room.players.forEach((p,i)=>{if(i!==g.picker)delta[i]=(won?-1:1)*b})}else{delta[g.picker]=(won?2:-2)*b;delta[g.partner]=(won?1:-1)*b;room.players.forEach((p,i)=>{if(!pickerTeam.includes(i))delta[i]=(won?-1:1)*b})}room.players.forEach((p,i)=>p.gameScore+=delta[i]);room.phase='roundEnd';const label=`Picker team ${won?'wins':'loses'} ${pp}–${op}${g.multiplier>1?` (x${g.multiplier})`:''}.`;room.message=`${label} Everyone press Next Round.`;room.history.push({round:room.roundNumber,type:'Normal',summary:label,delta:room.players.map((p,i)=>({name:p.name,change:delta[i]}))});const human=room.players.findIndex(p=>!p.isBot&&p.accountId);if(human>=0)recordCareer(room,delta[human]);resetReady(room);emit(room)}
+function scoreLeaster(room){const g=room.game;const lastWinner=g.current;if(g.blind.length)room.players[lastWinner].tricks.push(...g.blind);const totals=room.players.map(p=>p.tricks.reduce((s,c)=>s+POINTS[c.r],0));const eligible=room.players.map((p,i)=>({i,pts:totals[i],tricks:p.tricks.length/5})).filter(x=>x.tricks>0);const min=Math.min(...eligible.map(x=>x.pts));const winners=eligible.filter(x=>x.pts===min);const delta=Array(5).fill(0);let summary;if(winners.length===1){const w=winners[0].i,m=g.multiplier;delta[w]=4*m;room.players.forEach((p,i)=>{if(i!==w)delta[i]=-1*m});summary=`Leaster: ${room.players[w].name} wins with ${min} points.`}else summary=`Leaster tie at ${min} points — no score.`;room.players.forEach((p,i)=>p.gameScore+=delta[i]);room.phase='roundEnd';room.message=`${summary} Everyone press Next Round.`;room.history.push({round:room.roundNumber,type:'Leaster',summary,delta:room.players.map((p,i)=>({name:p.name,change:delta[i]}))});const human=room.players.findIndex(p=>!p.isBot&&p.accountId);if(human>=0)recordCareer(room,delta[human]);resetReady(room);emit(room)}
 function botPickScore(hand){
   const tr=hand.filter(isTrump), top=new Set(['QC','QS','QH','QD','JC','JS']);
   const offAces=hand.filter(c=>!isTrump(c)&&c.r==='A').length;
@@ -514,8 +579,8 @@ function markReady(room,socketId,kind){
 function maybeAdvanceBarrier(room){if(!room||!['lobby','doubling','trickEnd','roundEnd'].includes(room.phase)||!allHumansReady(room))return;if(room.phase==='lobby')startRound(room);else if(room.phase==='doubling')beginPlay(room);else if(room.phase==='trickEnd')advanceAfterTrick(room);else if(room.phase==='roundEnd')startRound(room)}
 
 io.on('connection',socket=>{
- socket.on('createRoom',({name,avatar,settings,mode})=>{const roomMode=mode==='single'?'single':'multiplayer',code=roomCode(),player=createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,4)),room={code,mode:roomMode,hostId:socket.id,players:[player],phase:'lobby',game:null,message:roomMode==='single'?'Single player ready. Press Start game when you are ready.':'Invite friends. Every human presses Start when ready.',settings:clampSettings(settings),history:[],roundNumber:0,nextMultiplier:1,readySet:new Set(),pendingDeal:null};rooms.set(code,room);socket.join(code);socket.data.code=code;emit(room)});
- socket.on('joinRoom',({code,name,avatar,password})=>{code=(code||'').toUpperCase().trim();const room=rooms.get(code);if(!room)return socket.emit('errorMsg','Room not found.');if(room.mode==='single')return socket.emit('errorMsg','That is a single-player table.');if(room.phase!=='lobby')return socket.emit('errorMsg','That game already started.');if(room.settings.password&&String(password||'')!==room.settings.password)return socket.emit('errorMsg','Wrong table password.');if(room.players.length>=5)return socket.emit('errorMsg','Room is full.');room.players.push(createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,4)));socket.join(code);socket.data.code=code;room.message='Every human presses Start when ready.';emit(room)});
+ socket.on('createRoom',({name,avatar,settings,mode,authToken})=>{const accountId=tokenUserId(authToken),roomMode=mode==='single'?'single':'multiplayer',code=roomCode(),player=createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,8),accountId),room={code,mode:roomMode,hostId:socket.id,players:[player],phase:'lobby',game:null,message:roomMode==='single'?'Single player ready. Press Start game when you are ready.':'Invite friends. Every human presses Start when ready.',settings:clampSettings(settings),history:[],roundNumber:0,nextMultiplier:1,readySet:new Set(),pendingDeal:null};rooms.set(code,room);socket.join(code);socket.data.code=code;emit(room)});
+ socket.on('joinRoom',({code,name,avatar,password,authToken})=>{const accountId=tokenUserId(authToken);code=(code||'').toUpperCase().trim();const room=rooms.get(code);if(!room)return socket.emit('errorMsg','Room not found.');if(room.mode==='single')return socket.emit('errorMsg','That is a single-player table.');if(room.phase!=='lobby')return socket.emit('errorMsg','That game already started.');if(room.settings.password&&String(password||'')!==room.settings.password)return socket.emit('errorMsg','Wrong table password.');if(room.players.length>=5)return socket.emit('errorMsg','Room is full.');room.players.push(createPlayer((name||'Player').slice(0,18),socket.id,false,String(avatar||'🙂').slice(0,8),accountId));socket.join(code);socket.data.code=code;room.message='Every human presses Start when ready.';emit(room)});
  socket.on('readyStart',()=>markReady(rooms.get(socket.data.code),socket.id,'START'));
  socket.on('readyPlay',()=>markReady(rooms.get(socket.data.code),socket.id,'PLAY'));
  socket.on('nextTrick',()=>markReady(rooms.get(socket.data.code),socket.id,'TRICK'));

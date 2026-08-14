@@ -223,3 +223,19 @@ Bot pickers now commit their two-card bury directly from their current 8-card ha
 
 ### Updating the live Render site
 Upload/replace `server.js`, `package.json`, and the `public` folder in the same GitHub repository. Once the commit is saved, Render should auto-deploy the new commit.
+
+## v15 home modes
+- Single Player: one human + four bots. Table score starts at 0 each session.
+- A device-local career profile saves name, avatar, cumulative single-player score, hands played, and best career total using browser localStorage.
+- Multiplayer: fresh table score every room; multiplayer results do not affect the saved career score.
+- This is the UI/account foundation. Cross-device email/Google login requires adding a persistent database/auth service (planned next).
+
+
+## v16 cross-device accounts
+The game now supports real email/password accounts backed by PostgreSQL. Guest play still works.
+
+On Render set two environment variables:
+- `DATABASE_URL` — a PostgreSQL connection string (Supabase, Neon, Render Postgres, etc.).
+- `JWT_SECRET` — a long random secret (at least 32 random characters).
+
+The server creates the `sheepshead_users` table automatically on startup. Career points are written by the game server after each completed single-player hand, so the browser cannot simply submit an arbitrary score. Multiplayer tables still reset to zero and do not change career points.
